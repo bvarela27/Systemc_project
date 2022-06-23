@@ -14,6 +14,9 @@ void lpc_analizer::set_samples(vector<double> samples_arg, double sample_rate_ar
     samples = samples_arg;
     sample_rate = sample_rate_arg;
 
+    // Set pointer to the first window
+    current_window = 0;
+
     normalize_samples();
     set_OLA();
 };
@@ -52,17 +55,16 @@ void lpc_analizer::set_OLA() {
     double window_points = get_window_points();
     double* hann_window = get_hann_window(window_points);
 
-    int num_samples = samples.size();
+    double overlap_size = floor(window_points*(double)(OVERLAP_PERCENTAGE)/(double)(100));
+    double num_windows = ((samples.size()-window_points) > 0) ? ceil((samples.size()-window_points)/overlap_size) + 1 : 1;
 
-    int step = floor(window_points*0.5);
-    int count = floor((num_samples-window_points)/step) + 1;
+    arma::Mat<double> OLA_int(window_points, num_windows, arma::fill::zeros);
 
-    arma::Mat<double> OLA_int(window_points, count);
-    OLA_int.zeros();
-
-    for (int j=0; j<count; j++) {
+    for (int j=0; j<num_windows; j++) {
         for (int i=0; i<window_points; i++) {
-            OLA_int(i,j) = hann_window[i] * samples[(j)*step+i];
+            if ((j)*overlap_size+i < samples.size()) {
+                OLA_int(i,j) = hann_window[i] * samples[(j)*overlap_size+i];
+            }
         }
     }
 
@@ -71,38 +73,34 @@ void lpc_analizer::set_OLA() {
 
 ////////////////////////////////////////////////////
 // LPC Analizer
-tuple <arma::Mat<double>, double> lpc_analizer::compute_LPC(arma::Mat<double> x, int p) {
+tuple <arma::Mat<double>, double> lpc_analizer::compute_LPC(arma::Mat<double> samples, int p) {
 
-    int N = x.size();
+    int N = samples.size();
     arma::Mat<double> b (N-1, 1);
 
     for (int i=0; i<N-1; i++) {
-        b(i, 0) = x(i+1, 0);
+        b(i, 0) = samples(i+1, 0);
     }
 
-    arma::Mat<double> xz = x;
-    arma::Mat<double> p_zero_matrix (p, 1);
-    p_zero_matrix.zeros();
-
-    xz.insert_rows(xz.n_rows, p_zero_matrix);
-
     arma::Mat<double> temp;
-    arma::Mat<double> A (N-1, p);
-    A.zeros();
+    arma::Mat<double> A (N-1, p, arma::fill::zeros);
 
+    // Create autocorrelation matrix
     for (int i=0; i<p; i++) {
-        temp = shift(xz, i);
+        temp = shift(samples, i);
         for (int j=0; j<N-1; j++) {
             A(j, i)  = temp(j, 0);
         }
     }
 
-    // Solve
+    // Solve Levinson-Gurbin recursion
     arma::Mat<double> a = solve(A, b);
 
+    // Calculate the errors errors
+    arma::Mat<double> error = b - A*a;
+
     // Calculate variance of errors
-    arma::Mat<double> e = b - A*a;
-    arma::Mat<double> g = var(e);
+    arma::Mat<double> g = var(error);
 
     return make_tuple(a, (double)g(0,0));
 };
@@ -120,8 +118,7 @@ tuple <bool, double, vector<double>> lpc_analizer::compute_LPC_window() {
     } else {
         valid = 1;
         tie(coeffs_matrix, gain) = compute_LPC(OLA.col(current_window), LPC_ORDER);
-        //cout << coeffs_matrix.col(0) << endl;
-        for (int i=0; i<LPC_ORDER; i++) {
+        for (int i=0; i<coeffs_matrix.n_rows; i++) {
             coeffs.push_back((double)coeffs_matrix(i, 0));
         }
         current_window++;

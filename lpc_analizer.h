@@ -12,6 +12,7 @@ using namespace std;
 // Defines
 #define LPC_ORDER           24
 #define WINDOW_SIZE_IN_S    0.03
+#define OVERLAP_PERCENTAGE  50
 
 ////////////////////////////////
 // Module
@@ -44,12 +45,12 @@ SC_MODULE (lpc_analizer)  {
     double* get_hann_window(double window_points);
 
     ////////////////////////////////////////////////////
-    // OLA
+    // Overlap-Add
     void set_OLA();
 
     ////////////////////////////////////////////////////
     // LPC Analizer
-    tuple <arma::Mat<double>, double> compute_LPC(arma::Mat<double> x, int p);
+    tuple <arma::Mat<double>, double> compute_LPC(arma::Mat<double> samples, int p);
     tuple <bool, double, vector<double>> compute_LPC_window();
     // Pending
     //tuple <bool, arma::Mat<double>, arma::Mat<double>> compute_LPC_all_windows()
