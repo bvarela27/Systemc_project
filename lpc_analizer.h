@@ -6,6 +6,10 @@
 #include <vector>
 #include <armadillo>
 
+#include "tlm.h"
+#include "tlm_utils/simple_initiator_socket.h"
+#include "tlm_utils/simple_target_socket.h"
+
 using namespace std;
 
 ////////////////////////////////
@@ -23,13 +27,23 @@ SC_MODULE (lpc_analizer)  {
     vector<double>        samples;
     double                sample_rate;
     int                   current_window;
+    sc_event              start_initiator;
+
+    ////////////////////////////////////////////////////
+    // TLM initiator
+    tlm_utils::simple_initiator_socket<lpc_analizer> socket;
 
     ////////////////////////////////////////////////////
     // Constructor
     SC_HAS_PROCESS(lpc_analizer);
-        lpc_analizer(sc_module_name lpc_analizer) : sc_module(lpc_analizer) {
+        lpc_analizer(sc_module_name lpc_analizer) : sc_module(lpc_analizer), socket("socket") {
+        SC_THREAD(thread_process);
         current_window = 0;
     }
+
+    ////////////////////////////////////////////////////
+    // Thread process (Initiator)
+    void thread_process();
 
     ////////////////////////////////////////////////////
     // Set samples and sample_rate
@@ -52,7 +66,5 @@ SC_MODULE (lpc_analizer)  {
     // LPC Analizer
     tuple <arma::Mat<double>, double> compute_LPC(arma::Mat<double> samples, int p);
     tuple <bool, double, vector<double>> compute_LPC_window();
-    // Pending
-    //tuple <bool, arma::Mat<double>, arma::Mat<double>> compute_LPC_all_windows()
 };
 #endif

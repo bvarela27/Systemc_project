@@ -5,17 +5,196 @@
 #include <math.h>
 #include "AudioFile.h"
 #include "lpc_analizer.h"
+#include "register_map.h"
+
+#define ROUTER_TARGET_ENCODER 0
+#define ROUTER_TARGET_RECEIVER 1
 
 using namespace std;
 
+// *********************************************
+// Router transmitter
+// *********************************************
+template<unsigned int N_TARGETS>
+struct Router_t: sc_module {
+    tlm_utils::simple_target_socket<Router_t>   target_socket_lpc;
+    tlm_utils::simple_target_socket<Router_t>   target_socket_enc;
+
+    tlm_utils::simple_initiator_socket_tagged<Router_t>* initiator_socket[N_TARGETS];
+
+    SC_CTOR(Router_t) : target_socket_lpc("target_socket_lpc"), target_socket_enc("target_socket_enc")  {
+        // Register callbacks for incoming interface method calls
+        target_socket_lpc.register_b_transport(this, &Router_t::b_transport);
+        target_socket_enc.register_b_transport(this, &Router_t::b_transport);
+   
+        for (unsigned int i = 0; i < N_TARGETS; i++) {
+            char txt[20];
+            sprintf(txt, "socket_%d", i);
+            initiator_socket[i] = new tlm_utils::simple_initiator_socket_tagged<Router_t>(txt);
+        }
+    }
+
+    // TLM-2 blocking transport method
+    virtual void b_transport( tlm::tlm_generic_payload& trans, sc_time& delay) {
+        unsigned int target_nr = decode_address( trans.get_address() );
+
+        // Forward transaction to appropriate target
+        ( *initiator_socket[target_nr] )->b_transport( trans, delay );
+    }
+
+    // Simple fixed address decoding
+    inline unsigned int decode_address( sc_dt::uint64 addr ) {
+        unsigned int target_nr;
+        // FIXME use decoder instead of synthesis
+        if (addr >= SYN_POLO_0) {
+            target_nr = ROUTER_TARGET_RECEIVER;
+        } else {
+            target_nr = ROUTER_TARGET_ENCODER;
+        }
+        return target_nr;
+    }
+};
+
+struct Encoder: sc_module {
+
+    sc_event event;
+    tlm_utils::simple_target_socket<Encoder> target_socket;
+    tlm_utils::simple_initiator_socket<Encoder> initiator_socket;
+
+    SC_CTOR(Encoder): target_socket("target_socket"), initiator_socket("initiator_socket") {
+        // Register callbacks for incoming interface method calls
+        target_socket.register_b_transport(this, &Encoder::b_transport);
+        SC_THREAD(thread_process);
+    }
+
+    void thread_process() {
+        while (true) {
+        	wait(event);
+
+        	tlm::tlm_generic_payload* trans = new tlm::tlm_generic_payload;
+        	sc_dt::uint64 addr;
+            double data;
+        	sc_time delay = sc_time(1, SC_NS);
+
+        	trans->set_command( tlm::TLM_WRITE_COMMAND );
+        	trans->set_data_length( 8 );
+        	trans->set_streaming_width( 8 ); // = data_length to indicate no streaming
+        	trans->set_byte_enable_ptr( 0 ); // 0 indicates unused
+        	trans->set_dmi_allowed( false ); // Mandatory initial value
+        	trans->set_response_status( tlm::TLM_INCOMPLETE_RESPONSE ); // Mandatory initial value
+
+        	for (int i=0; i<LPC_ORDER+2; i++) {
+        	    cout << "Encoder Initiator TLM: " << i << endl;
+
+        	    addr = SYN_POLO_0 + 0x00000008*i;
+                data = (double) i ;
+
+        	    trans->set_address( addr );
+        	    trans->set_data_ptr( reinterpret_cast<unsigned char*>(&data) );
+
+        	    initiator_socket->b_transport( *trans, delay );  // Blocking transport call
+
+        	    // Initiator obliged to check response status
+        	    if ( trans->is_response_error() ) {
+        	        char txt[100];
+        	        sprintf(txt, "Error from b_transport, response status = %s", trans->get_response_string().c_str());
+        	        SC_REPORT_ERROR("TLM-2", txt);
+        	    }
+        	}
+        } 
+    }
+
+    // Blocking transport method
+    virtual void b_transport( tlm::tlm_generic_payload& trans, sc_time& delay ) {
+        tlm::tlm_command cmd = trans.get_command();
+        sc_dt::uint64    addr = trans.get_address();
+        unsigned char*   ptr = trans.get_data_ptr();
+        unsigned int     len = trans.get_data_length();
+        unsigned char*   byt = trans.get_byte_enable_ptr();
+        unsigned int     wid = trans.get_streaming_width();
+
+        wait(delay);
+
+        double data;
+        memcpy(&data, ptr, len);
+
+        cout << name() << " Data received: " << data << endl;
+
+        // FIXME ENC_PITCH instead
+        if (addr == ENC_GAIN) {
+            event.notify(0, SC_NS);
+        }
+
+        // Obliged to set response status to indicate successful completion
+        trans.set_response_status( tlm::TLM_OK_RESPONSE );
+    }
+};
+
+struct Synthesis: sc_module {
+
+    tlm_utils::simple_target_socket<Synthesis> socket;
+
+    SC_CTOR(Synthesis): socket("socket") {
+        // Register callbacks for incoming interface method calls
+        socket.register_b_transport(this, &Synthesis::b_transport);
+    }
+
+    // TLM-2 blocking transport method
+    virtual void b_transport( tlm::tlm_generic_payload& trans, sc_time& delay ) {
+        tlm::tlm_command cmd = trans.get_command();
+        sc_dt::uint64    adr = trans.get_address();
+        unsigned char*   ptr = trans.get_data_ptr();
+        unsigned int     len = trans.get_data_length();
+        unsigned char*   byt = trans.get_byte_enable_ptr();
+        unsigned int     wid = trans.get_streaming_width();
+
+        wait(delay);
+
+        double data;
+        memcpy(&data, ptr, len);
+
+        cout << name() << " Data received: " << data << endl;
+
+        // Obliged to set response status to indicate successful completion
+        trans.set_response_status( tlm::TLM_OK_RESPONSE );
+    }
+};
+
+
+SC_MODULE(Top) {
+    lpc_analizer* lpc_analizer_i;
+    Router_t<2>*  router_t;
+    Encoder*      encoder;
+    Synthesis*    synthesis;
+    
+
+    SC_CTOR(Top) {
+        // Instantiate components
+        lpc_analizer_i = new lpc_analizer("lpc_analizer");
+        router_t       = new Router_t<2>("router_t");
+        encoder        = new Encoder("encoder");
+        synthesis      = new Synthesis("synthesis");
+
+        /////////////////////////
+        // Bind sockets
+
+        // Analizer
+        lpc_analizer_i->socket.bind( router_t->target_socket_lpc );
+
+        // Router
+        router_t->initiator_socket[ROUTER_TARGET_ENCODER]->bind( encoder->target_socket );
+        router_t->initiator_socket[ROUTER_TARGET_RECEIVER]->bind( synthesis->socket );
+
+        // Encoder
+        encoder->initiator_socket.bind( router_t->target_socket_enc );
+    }
+};
+
 int sc_main(int argc, char* argv[])  {
 
-    lpc_analizer lpc_analizer("LPC_ANALIZER");
-
+    Top top("top");
+    
     sc_start();
-
-    cout << "Testbench LPC analizer" << endl;
-    cout << "@" << sc_time_stamp() << " Simulation Start" << endl;
 
     ////////////////////////////////////////////////////
     // Read WAV file
@@ -23,76 +202,14 @@ int sc_main(int argc, char* argv[])  {
     audioFile.load("speech.wav");
 
     int channel = 0;
-    //int sample_rate = (int) audioFile.getSampleRate(); //FIXME resample the speech at 8KHz.
     int sample_rate = 8000;
     vector<double> samples = audioFile.samples[channel];
 
     ////////////////////////////////////////////////////
-    // Check the amount of windows and the amount of coeffs returned per window
-    bool valid;
-    double gain;
-    vector<double> coeffs;
+    // Set samples and rate
+    top.lpc_analizer_i->set_samples(samples, sample_rate);
 
-    double window_points = sample_rate*WINDOW_SIZE_IN_S;
-    double overlap_size = floor(window_points*OVERLAP_PERCENTAGE/100);
-    int rnd_num_samples;
-    int num_windows_expected;
-    int count_windows;
-    int count_test_pass = 0;
-    int count_test_fail = 0;
-
-    // Number of times the test will run
-    int num_tests = 100;
-
-    for (int i=0; i<num_tests; i++) {
-        // Set samples and rate
-        vector<double> samples_int;
-        rnd_num_samples = rand() % samples.size() + 1;
-        for (int j=0; j<rnd_num_samples; j++) {
-            samples_int.push_back(samples[j]);
-        }
-        lpc_analizer.set_samples(samples_int, sample_rate);
-
-        // Initiate counters
-        count_windows = 0;
-
-        // Calculate the expected number of windows
-        if ((samples_int.size()-window_points) < 0) {
-            num_windows_expected = 1;
-        } else {
-            num_windows_expected = 1 + ceil((samples_int.size()-window_points)/overlap_size);
-        }
-
-        while (true) {
-            tie(valid, gain, coeffs) = lpc_analizer.compute_LPC_window();
-            if (valid) {
-                // Check the amount coeffs that were returned
-                if (coeffs.size() != LPC_ORDER) {
-                    cout << "\033[1;31mTest " << i << " Failed: The amount coeffs returned do not match the number of coeffs expected.\033[0m\n";
-                    count_test_fail++;
-                    break;
-                }
-                count_windows++;
-            } else {
-                // Check the number of windows returned
-                if (count_windows != num_windows_expected) {
-                    cout << "\033[1;31mTest " << i << " Failed: The number of windows returned do not match the number of windows expected.\033[0m\n";
-                    count_test_fail++;
-                } else {
-                    cout << "\033[1;32mTest " << i << " Passed.\033[0m\n";
-                    count_test_pass++;
-                }
-                break;
-            }
-        }
-    }
-
-    // Summary
-    cout << "\033[1;34m\nNUMBER OF TESTS: " << num_tests << ".\033[0m\n";
-    cout << "\033[1;34mNUMBER OF TESTS THAT PASSED: " << count_test_pass << ".\033[0m\n";
-    cout << "\033[1;34mNUMBER OF TESTS THAT FAILED: " << count_test_fail << ".\033[0m\n";
-
-    cout << "@" << sc_time_stamp() << " Simulation End" << endl;
+    sc_start(30,SC_NS);
 
     return 0;
 }

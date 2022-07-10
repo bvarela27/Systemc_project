@@ -5,8 +5,79 @@
 #include <math.h>
 #include "hanning.h"
 #include "lpc_analizer.h"
+#include "tlm.h"
+#include "register_map.h"
 
 using namespace std;
+
+////////////////////////////////////////////////////
+// Thread process (Initiator)
+void lpc_analizer::thread_process() {
+    // Local variables
+    int count_tlms = 1;
+    bool valid;
+    double gain;
+    vector<double> coeffs;
+
+    // Wait the user to set the samples
+    wait(start_initiator);
+
+    tlm::tlm_generic_payload* trans = new tlm::tlm_generic_payload;
+    sc_dt::uint64 addr;
+    sc_time delay = sc_time(1, SC_NS);
+
+    // Generate a random sequence of reads and writes
+    while (true) {
+        tie(valid, gain, coeffs) = compute_LPC_window();
+        if (valid) {
+            // Common fields
+            trans->set_command( tlm::TLM_WRITE_COMMAND );
+            trans->set_data_length( 8 );
+            trans->set_streaming_width( 8 ); // = data_length to indicate no streaming
+            trans->set_byte_enable_ptr( 0 ); // 0 indicates unused
+            trans->set_dmi_allowed( false ); // Mandatory initial value
+            trans->set_response_status( tlm::TLM_INCOMPLETE_RESPONSE ); // Mandatory initial value
+
+            for (int i=0; i<LPC_ORDER; i++) {
+                cout << "Initiator TLM: " << count_tlms << " Coeff[" << i << "]: " << coeffs[i] << endl;
+
+                addr = ENC_POLO_0 + 0x00000008*i;
+
+                trans->set_address( addr );
+                trans->set_data_ptr( reinterpret_cast<unsigned char*>(&coeffs[i]) );
+
+                socket->b_transport( *trans, delay );  // Blocking transport call
+
+                // Initiator obliged to check response status
+                if ( trans->is_response_error() ) {
+                    char txt[100];
+                    sprintf(txt, "Error from b_transport, response status = %s", trans->get_response_string().c_str());
+                    SC_REPORT_ERROR("TLM-2", txt);
+                }
+                count_tlms++;
+            }
+
+            cout << "Initiator TLM: " << count_tlms << " Gain: " << gain << endl;
+
+            addr = ENC_GAIN;
+
+            trans->set_address( addr );
+            trans->set_data_ptr( reinterpret_cast<unsigned char*>(&gain) );
+
+            socket->b_transport( *trans, delay );
+
+            // Initiator obliged to check response status
+            if ( trans->is_response_error() ) {
+                char txt[100];
+                sprintf(txt, "Error from b_transport, response status = %s", trans->get_response_string().c_str());
+                SC_REPORT_ERROR("TLM-2", txt);
+            }
+        } else {
+            break;
+        }
+        count_tlms++;
+    }
+};
 
 ////////////////////////////////////////////////////
 // Set samples and sample_rate
@@ -19,6 +90,9 @@ void lpc_analizer::set_samples(vector<double> samples_arg, double sample_rate_ar
 
     normalize_samples();
     set_OLA();
+
+    // Notify initiator
+    start_initiator.notify(0, SC_NS);
 };
 
 ////////////////////////////////////////////////////
@@ -126,7 +200,3 @@ tuple <bool, double, vector<double>> lpc_analizer::compute_LPC_window() {
 
     return make_tuple(valid, gain, coeffs);
 };
-
-// Pending
-//tuple <bool, arma::Mat<double>, arma::Mat<double>> lpc_analizer::compute_LPC_all_windows()
-
