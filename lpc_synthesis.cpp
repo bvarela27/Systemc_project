@@ -1,7 +1,7 @@
 #include "lpc_synthesis.h"
 
 //Decoder Function
-arma::vec lcpDecode(arma::vec A, double *GFE){
+arma::vec lpc_synthesis::lcpDecode(arma::vec A, double *GFE){
 
     double G = GFE[0];
     double F = GFE[1];
@@ -53,7 +53,7 @@ arma::vec lcpDecode(arma::vec A, double *GFE){
 }
 
 //Filter Function
-arma::vec filter(arma::vec b, arma::vec a, arma::vec X){
+arma::vec lpc_synthesis::filter(arma::vec b, arma::vec a, arma::vec X) {
 
     if (b.n_rows < a.n_rows)
     {
@@ -106,4 +106,37 @@ arma::vec filter(arma::vec b, arma::vec a, arma::vec X){
     //z = z.rows(1,n-1);
 
     return Y;
+}
+
+void lpc_synthesis::LPC_decoding() {
+        arma::vec A(N_POLES);
+        arma::vec out(WINDOW_LENGTH_2);
+        out.zeros();
+        double GF[2];
+
+        for(uint16_t n = 0; n<N_POLES; n++) {
+            A(n) = input_buffer[n];
+        }
+
+        GF[0] = input_buffer[N_POLES];
+        GF[1] = input_buffer[N_POLES+1];
+
+        out = lcpDecode(A,GF);
+
+        sleep(1);
+        for(uint16_t n = 0; n<WINDOW_LENGTH_2; n++) {
+            LPC_output[n]=out(n);
+        }
+    }
+
+void lpc_synthesis::execute(double * input) {
+    std::copy(input, input + N_POLES+2, input_buffer);
+    LPC_decoding();
+}
+
+double* lpc_synthesis::read_output() {
+    static double output[WINDOW_LENGTH_2];
+    std::copy(LPC_output,LPC_output+WINDOW_LENGTH_2,output);
+
+    return LPC_output;
 }

@@ -1,6 +1,7 @@
-#ifndef LPC_H_INCLUDED
-#define LPC_H_INCLUDED
+#ifndef LPC_SYNTHESIS
+#define LPC_SYNTHESIS
 
+#include "systemc.h"
 #include <math.h>
 #include <random>
 #include <armadillo>
@@ -9,10 +10,20 @@
 #define WINDOW_LENGTH_2 WINDOW_LENGTH/2
 #define N_POLES 24
 
-//const arma::vec b_butterworth = {0.7779,-7.7793,35.0070, -93.3519,163.3658,-196.0390,163.3658,-93.3519,35.0070,-7.7793,0.7779};
-//const arma::vec a_butterworth = {1.0000,-9.4979,40.6070,-102.9696,171.2005,-195.3534,154.8446,-84.1849,30.0441,-6.3556,0.6052};
+SC_MODULE(lpc_synthesis) {
+    double input_buffer[N_POLES+2];
+    double LPC_output[WINDOW_LENGTH_2];
 
-arma::vec filter(arma::vec b, arma::vec a, arma::vec X);
-arma::vec lcpDecode(arma::vec A, double *GFE);
+    SC_HAS_PROCESS(lpc_synthesis);
+        lpc_synthesis(sc_module_name lpc_synthesis) : sc_module(lpc_synthesis){
+    }
 
-#endif // LPC_H_INCLUDED
+    void LPC_decoding();
+    void execute(double * input);
+    double* read_output();
+
+    arma::vec filter(arma::vec b, arma::vec a, arma::vec X);
+    arma::vec lcpDecode(arma::vec A, double *GFE);
+};
+
+#endif // LPC_SYNTHESIS

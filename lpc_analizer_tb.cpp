@@ -5,6 +5,7 @@
 #include <math.h>
 #include "AudioFile.h"
 #include "lpc_analizer.h"
+#include "lpc_synthesis.h"
 #include "register_map.h"
 
 #define ROUTER_TARGET_ENCODER 0
@@ -74,7 +75,7 @@ struct Encoder: sc_module {
         	tlm::tlm_generic_payload* trans = new tlm::tlm_generic_payload;
         	sc_dt::uint64 addr;
             double data;
-        	sc_time delay = sc_time(1, SC_NS);
+        	sc_time delay = sc_time(0, SC_NS);
 
         	trans->set_command( tlm::TLM_WRITE_COMMAND );
         	trans->set_data_length( 8 );
@@ -209,7 +210,7 @@ int sc_main(int argc, char* argv[])  {
     // Set samples and rate
     top.lpc_analizer_i->set_samples(samples, sample_rate);
 
-    sc_start(30,SC_NS);
+    sc_start(1000,SC_NS);
 
     return 0;
 }
