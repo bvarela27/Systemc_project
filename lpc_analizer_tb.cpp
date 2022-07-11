@@ -131,50 +131,19 @@ struct Encoder: sc_module {
     }
 };
 
-struct Synthesis: sc_module {
-
-    tlm_utils::simple_target_socket<Synthesis> socket;
-
-    SC_CTOR(Synthesis): socket("socket") {
-        // Register callbacks for incoming interface method calls
-        socket.register_b_transport(this, &Synthesis::b_transport);
-    }
-
-    // TLM-2 blocking transport method
-    virtual void b_transport( tlm::tlm_generic_payload& trans, sc_time& delay ) {
-        tlm::tlm_command cmd = trans.get_command();
-        sc_dt::uint64    adr = trans.get_address();
-        unsigned char*   ptr = trans.get_data_ptr();
-        unsigned int     len = trans.get_data_length();
-        unsigned char*   byt = trans.get_byte_enable_ptr();
-        unsigned int     wid = trans.get_streaming_width();
-
-        wait(delay);
-
-        double data;
-        memcpy(&data, ptr, len);
-
-        cout << name() << " Data received: " << data << endl;
-
-        // Obliged to set response status to indicate successful completion
-        trans.set_response_status( tlm::TLM_OK_RESPONSE );
-    }
-};
-
-
 SC_MODULE(Top) {
-    lpc_analizer* lpc_analizer_i;
-    Router_t<2>*  router_t;
-    Encoder*      encoder;
-    Synthesis*    synthesis;
+    lpc_analizer*  lpc_analizer_i;
+    Router_t<2>*   router_t;
+    Encoder*       encoder;
+    lpc_synthesis* lpc_synthesis_i;
     
 
     SC_CTOR(Top) {
         // Instantiate components
-        lpc_analizer_i = new lpc_analizer("lpc_analizer");
-        router_t       = new Router_t<2>("router_t");
-        encoder        = new Encoder("encoder");
-        synthesis      = new Synthesis("synthesis");
+        lpc_analizer_i  = new lpc_analizer("lpc_analizer");
+        router_t        = new Router_t<2>("router_t");
+        encoder         = new Encoder("encoder");
+        lpc_synthesis_i = new lpc_synthesis("lpc_synthesis");
 
         /////////////////////////
         // Bind sockets
@@ -184,7 +153,7 @@ SC_MODULE(Top) {
 
         // Router
         router_t->initiator_socket[ROUTER_TARGET_ENCODER]->bind( encoder->target_socket );
-        router_t->initiator_socket[ROUTER_TARGET_RECEIVER]->bind( synthesis->socket );
+        router_t->initiator_socket[ROUTER_TARGET_RECEIVER]->bind( lpc_synthesis_i->socket );
 
         // Encoder
         encoder->initiator_socket.bind( router_t->target_socket_enc );
