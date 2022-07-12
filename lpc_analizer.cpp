@@ -14,7 +14,6 @@ using namespace std;
 // Thread process (Initiator)
 void lpc_analizer::thread_process() {
     // Local variables
-    int count_tlms = 1;
     bool valid;
     double gain;
     vector<double> coeffs;
@@ -23,6 +22,8 @@ void lpc_analizer::thread_process() {
     wait(start_initiator);
 
     tlm::tlm_generic_payload* trans = new tlm::tlm_generic_payload;
+    tlm::tlm_phase phase = tlm::BEGIN_REQ;
+    tlm::tlm_sync_enum status;
     sc_dt::uint64 addr;
     sc_time delay = sc_time(1, SC_NS);
 
@@ -39,14 +40,24 @@ void lpc_analizer::thread_process() {
             trans->set_response_status( tlm::TLM_INCOMPLETE_RESPONSE ); // Mandatory initial value
 
             for (int i=0; i<LPC_ORDER; i++) {
-                cout << "Initiator TLM: " << count_tlms << " Coeff[" << i << "]: " << coeffs[i] << endl;
+                //cout << "LPC_ANALIZER BEGIN_REQ SENT" << " TRANS ID " << id_extension->transaction_id << " at time " << sc_time_stamp() << endl;
+                cout << name() << " BEGIN_REQ SENT" << " at time " << sc_time_stamp() << " Coeff[" << i << "]: " << coeffs[i] << endl;
 
                 addr = ENC_POLO_0 + 0x00000008*i;
 
                 trans->set_address( addr );
                 trans->set_data_ptr( reinterpret_cast<unsigned char*>(&coeffs[i]) );
 
-                socket->b_transport( *trans, delay );  // Blocking transport call
+                status = socket->nb_transport_fw( *trans, phase, delay );
+
+                switch (status) {
+                    case tlm::TLM_ACCEPTED:
+                        cout << name() << " NB_TRANSPORT_FW (STATUS TLM_ACCEPTED)" << " at time " << sc_time_stamp() << endl;
+                        break;
+                    default:
+                        cout << name() << " NB_TRANSPORT_FW (STATUS not expected)" << " at time " << sc_time_stamp() << endl;
+                        break;
+                }
 
                 // Initiator obliged to check response status
                 if ( trans->is_response_error() ) {
@@ -54,17 +65,25 @@ void lpc_analizer::thread_process() {
                     sprintf(txt, "Error from b_transport, response status = %s", trans->get_response_string().c_str());
                     SC_REPORT_ERROR("TLM-2", txt);
                 }
-                count_tlms++;
             }
 
-            cout << "Initiator TLM: " << count_tlms << " Gain: " << gain << endl;
+            cout << name() << " BEGIN_REQ SENT" << " at time " << sc_time_stamp() << " Gain: " << gain << endl;
 
             addr = ENC_GAIN;
 
             trans->set_address( addr );
             trans->set_data_ptr( reinterpret_cast<unsigned char*>(&gain) );
 
-            socket->b_transport( *trans, delay );
+            status = socket->nb_transport_fw( *trans, phase, delay );
+
+            switch (status) {
+                case tlm::TLM_ACCEPTED:
+                    cout << name() << " NB_TRANSPORT_FW (STATUS TLM_ACCEPTED)" << " at time " << sc_time_stamp() << endl;
+                    break;
+                default:
+                    cout << name() << " NB_TRANSPORT_FW (STATUS not expected)" << " at time " << sc_time_stamp() << endl;
+                    break;
+            }
 
             // Initiator obliged to check response status
             if ( trans->is_response_error() ) {
@@ -75,7 +94,6 @@ void lpc_analizer::thread_process() {
         } else {
             break;
         }
-        count_tlms++;
     }
 };
 
@@ -94,6 +112,41 @@ void lpc_analizer::set_samples(vector<double> samples_arg, double sample_rate_ar
     // Notify initiator
     start_initiator.notify(0, SC_NS);
 };
+
+////////////////////////////////////////////////////
+// Backward path non-blocking (Initiator)
+tlm::tlm_sync_enum lpc_analizer::nb_transport_bw( tlm::tlm_generic_payload& trans, tlm::tlm_phase& phase, sc_time& delay ) {
+    tlm::tlm_command cmd = trans.get_command();
+    sc_dt::uint64    adr = trans.get_address();
+
+    //ID_extension* id_extension = new ID_extension;
+    //trans.get_extension( id_extension );
+
+    if (phase == tlm::BEGIN_RESP) {
+
+        // Initiator obliged to check response status   
+        if (trans.is_response_error()) {
+            SC_REPORT_ERROR("TLM2", "Response error from nb_transport");
+        }
+
+        //cout << "trans/bw = { " << (cmd ? 'W' : 'R') << ", " << hex << adr
+        //     << " } , data = " << hex << data << " at time " << sc_time_stamp()
+        //     << ", delay = " << delay << endl;
+
+        cout << "trans/bw = { " << (cmd ? 'W' : 'R') << ", " << hex << adr
+             << " } ," << " at time " << sc_time_stamp()
+             << ", delay = " << delay << endl;
+
+        //Delay
+        wait(delay);
+
+        //cout << name () << " BEGIN_RESP RECEIVED" << " TRANS ID " << id_extension->transaction_id << " at time " << sc_time_stamp() << endl;
+        cout << name() << " BEGIN_RESP RECEIVED" << " at time " << sc_time_stamp() << endl;
+    }
+
+    return tlm::TLM_ACCEPTED;
+};
+
 
 ////////////////////////////////////////////////////
 // Normalize function

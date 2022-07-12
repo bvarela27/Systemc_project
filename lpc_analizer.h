@@ -37,6 +37,7 @@ SC_MODULE (lpc_analizer)  {
     // Constructor
     SC_HAS_PROCESS(lpc_analizer);
         lpc_analizer(sc_module_name lpc_analizer) : sc_module(lpc_analizer), socket("socket") {
+        socket.register_nb_transport_bw(this, &lpc_analizer::nb_transport_bw);
         SC_THREAD(thread_process);
         current_window = 0;
     }
@@ -44,6 +45,10 @@ SC_MODULE (lpc_analizer)  {
     ////////////////////////////////////////////////////
     // Thread process (Initiator)
     void thread_process();
+
+    ////////////////////////////////////////////////////
+    // Backward path non-blocking (Initiator)
+    virtual tlm::tlm_sync_enum nb_transport_bw( tlm::tlm_generic_payload& trans, tlm::tlm_phase& phase, sc_time& delay );
 
     ////////////////////////////////////////////////////
     // Set samples and sample_rate

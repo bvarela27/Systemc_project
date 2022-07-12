@@ -22,7 +22,7 @@ SC_MODULE(lpc_synthesis) {
 
     SC_HAS_PROCESS(lpc_synthesis);
         lpc_synthesis(sc_module_name lpc_synthesis) : sc_module(lpc_synthesis), socket("socket") {
-        socket.register_b_transport(this, &lpc_synthesis::b_transport);
+        socket.register_nb_transport_fw(this, &lpc_synthesis::nb_transport_fw);
     }
 
     void LPC_decoding();
@@ -32,7 +32,7 @@ SC_MODULE(lpc_synthesis) {
     arma::vec filter(arma::vec b, arma::vec a, arma::vec X);
     arma::vec lcpDecode(arma::vec A, double *GFE);
 
-    virtual void b_transport( tlm::tlm_generic_payload& trans, sc_time& delay );
+    virtual tlm::tlm_sync_enum nb_transport_fw( tlm::tlm_generic_payload& trans, tlm::tlm_phase& phase, sc_time& delay );
 };
 
 #endif // LPC_SYNTHESIS

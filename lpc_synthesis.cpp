@@ -142,7 +142,7 @@ double* lpc_synthesis::read_output() {
     return LPC_output;
 }
 
-void lpc_synthesis::b_transport( tlm::tlm_generic_payload& trans, sc_time& delay ) {
+tlm::tlm_sync_enum lpc_synthesis::nb_transport_fw( tlm::tlm_generic_payload& trans, tlm::tlm_phase& phase, sc_time& delay ) {
 	tlm::tlm_command cmd = trans.get_command();
 	sc_dt::uint64    addr = trans.get_address();
 	unsigned char*   ptr = trans.get_data_ptr();
@@ -161,8 +161,14 @@ void lpc_synthesis::b_transport( tlm::tlm_generic_payload& trans, sc_time& delay
     input_buffer_idx = (addr - SYN_POLO_0)/8;
     input_buffer[input_buffer_idx] = data;
 	
-	cout << name() << " Data received: " << data << endl;
+	//cout << name() << " Data received: " << data << endl;
+
+    if (phase == tlm::BEGIN_REQ) {
+        cout << name() << " BEGIN_REQ RECEIVED" << " at time " << sc_time_stamp() << endl;
+    }
 	
 	// Obliged to set response status to indicate successful completion
 	trans.set_response_status( tlm::TLM_OK_RESPONSE );
+
+    return tlm::TLM_ACCEPTED;
 }

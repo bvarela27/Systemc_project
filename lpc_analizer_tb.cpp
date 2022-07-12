@@ -25,8 +25,8 @@ struct Router_t: sc_module {
 
     SC_CTOR(Router_t) : target_socket_lpc("target_socket_lpc"), target_socket_enc("target_socket_enc")  {
         // Register callbacks for incoming interface method calls
-        target_socket_lpc.register_b_transport(this, &Router_t::b_transport);
-        target_socket_enc.register_b_transport(this, &Router_t::b_transport);
+        target_socket_lpc.register_nb_transport_fw(this, &Router_t::nb_transport_fw);
+        target_socket_enc.register_nb_transport_fw(this, &Router_t::nb_transport_fw);
    
         for (unsigned int i = 0; i < N_TARGETS; i++) {
             char txt[20];
@@ -36,11 +36,14 @@ struct Router_t: sc_module {
     }
 
     // TLM-2 blocking transport method
-    virtual void b_transport( tlm::tlm_generic_payload& trans, sc_time& delay) {
+    virtual tlm::tlm_sync_enum nb_transport_fw( tlm::tlm_generic_payload& trans, tlm::tlm_phase& phase, sc_time& delay ) {
         unsigned int target_nr = decode_address( trans.get_address() );
 
         // Forward transaction to appropriate target
-        ( *initiator_socket[target_nr] )->b_transport( trans, delay );
+        tlm::tlm_sync_enum status;
+        status = ( *initiator_socket[target_nr] )->nb_transport_fw( trans, phase, delay );
+        
+        return status;
     }
 
     // Simple fixed address decoding
@@ -64,7 +67,7 @@ struct Encoder: sc_module {
 
     SC_CTOR(Encoder): target_socket("target_socket"), initiator_socket("initiator_socket") {
         // Register callbacks for incoming interface method calls
-        target_socket.register_b_transport(this, &Encoder::b_transport);
+        target_socket.register_nb_transport_fw(this, &Encoder::nb_transport_fw);
         SC_THREAD(thread_process);
     }
 
@@ -73,9 +76,11 @@ struct Encoder: sc_module {
         	wait(event);
 
         	tlm::tlm_generic_payload* trans = new tlm::tlm_generic_payload;
+            tlm::tlm_phase phase = tlm::BEGIN_REQ;
+            tlm::tlm_sync_enum status;
         	sc_dt::uint64 addr;
             double data;
-        	sc_time delay = sc_time(0, SC_NS);
+        	sc_time delay = sc_time(1, SC_NS);
 
         	trans->set_command( tlm::TLM_WRITE_COMMAND );
         	trans->set_data_length( 8 );
@@ -85,7 +90,7 @@ struct Encoder: sc_module {
         	trans->set_response_status( tlm::TLM_INCOMPLETE_RESPONSE ); // Mandatory initial value
 
         	for (int i=0; i<LPC_ORDER+2; i++) {
-        	    cout << "Encoder Initiator TLM: " << i << endl;
+        	    cout << name() << " BEGIN_REQ SENT" << " at time " << sc_time_stamp() << endl;
 
         	    addr = SYN_POLO_0 + 0x00000008*i;
                 data = (double) i ;
@@ -93,7 +98,16 @@ struct Encoder: sc_module {
         	    trans->set_address( addr );
         	    trans->set_data_ptr( reinterpret_cast<unsigned char*>(&data) );
 
-        	    initiator_socket->b_transport( *trans, delay );  // Blocking transport call
+        	    status = initiator_socket->nb_transport_fw( *trans, phase, delay );  // Blocking transport call
+
+                switch (status) {
+                    case tlm::TLM_ACCEPTED:
+                        cout << name() << " NB_TRANSPORT_FW (STATUS TLM_ACCEPTED)" << " at time " << sc_time_stamp() << endl;
+                        break;
+                    default:
+                        cout << name() << " NB_TRANSPORT_FW (STATUS not expected)" << " at time " << sc_time_stamp() << endl;
+                        break;
+                }
 
         	    // Initiator obliged to check response status
         	    if ( trans->is_response_error() ) {
@@ -106,7 +120,7 @@ struct Encoder: sc_module {
     }
 
     // Blocking transport method
-    virtual void b_transport( tlm::tlm_generic_payload& trans, sc_time& delay ) {
+    virtual tlm::tlm_sync_enum nb_transport_fw( tlm::tlm_generic_payload& trans, tlm::tlm_phase& phase, sc_time& delay ) {
         tlm::tlm_command cmd = trans.get_command();
         sc_dt::uint64    addr = trans.get_address();
         unsigned char*   ptr = trans.get_data_ptr();
@@ -119,7 +133,12 @@ struct Encoder: sc_module {
         double data;
         memcpy(&data, ptr, len);
 
-        cout << name() << " Data received: " << data << endl;
+        //cout << name() << " Data received: " << data << endl;
+        //cout << name() << " BEGIN_REQ RECEIVED" << " TRANS ID " << id_extension->transaction_id << " at time " << sc_time_stamp() << endl;
+        
+        if (phase == tlm::BEGIN_REQ) {
+            cout << name() << " BEGIN_REQ RECEIVED" << " at time " << sc_time_stamp() << endl;
+        }
 
         // FIXME ENC_PITCH instead
         if (addr == ENC_GAIN) {
@@ -128,6 +147,8 @@ struct Encoder: sc_module {
 
         // Obliged to set response status to indicate successful completion
         trans.set_response_status( tlm::TLM_OK_RESPONSE );
+
+        return tlm::TLM_ACCEPTED;
     }
 };
 
@@ -179,7 +200,7 @@ int sc_main(int argc, char* argv[])  {
     // Set samples and rate
     top.lpc_analizer_i->set_samples(samples, sample_rate);
 
-    sc_start(1000,SC_NS);
+    sc_start(50,SC_NS);
 
     return 0;
 }
