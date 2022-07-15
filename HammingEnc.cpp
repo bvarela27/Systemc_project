@@ -62,7 +62,6 @@ tlm::tlm_sync_enum HammingEnc::nb_transport_fw( tlm::tlm_generic_payload& trans,
         // Check len
 
         // Queue transaction
-        //trans_pending[0] = &trans;
         queue_trans_pending.push_front(&trans);
 
         // Trigger event
@@ -115,6 +114,11 @@ void HammingEnc::thread_process() {
         // Read Encoder output
         encoded_data = read();
 
+        // Obliged to set response status to indicate successful completion
+        trans_pending->set_response_status( tlm::TLM_OK_RESPONSE );
+
+        cout << name() << " BEGIN_RESP SENT" << " at time " << sc_time_stamp() << endl;
+
         // Backward call
         delay_bw= sc_time(1, SC_NS);
         status_bw = target_socket->nb_transport_bw( *trans_pending, phase_bw, delay_bw );
@@ -163,4 +167,28 @@ void HammingEnc::thread_process() {
 		}
     }
 
+};
+
+tlm::tlm_sync_enum HammingEnc::nb_transport_bw( tlm::tlm_generic_payload& trans, tlm::tlm_phase& phase, sc_time& delay ) {
+    tlm::tlm_command cmd = trans.get_command();
+    sc_dt::uint64    adr = trans.get_address();
+
+    //ID_extension* id_extension = new ID_extension;
+    //trans.get_extension( id_extension );
+
+    if (phase == tlm::BEGIN_RESP) {
+
+        // Initiator obliged to check response status   
+        if (trans.is_response_error()) {
+            SC_REPORT_ERROR("TLM2", "Response error from nb_transport");
+        }
+
+        //Delay
+        wait(delay);
+
+        //cout << name () << " BEGIN_RESP RECEIVED" << " TRANS ID " << id_extension->transaction_id << " at time " << sc_time_stamp() << endl;
+        cout << name() << " BEGIN_RESP RECEIVED" << " at time " << sc_time_stamp() << endl;
+    }
+
+    return tlm::TLM_ACCEPTED;
 };

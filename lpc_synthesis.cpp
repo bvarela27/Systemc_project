@@ -143,32 +143,92 @@ double* lpc_synthesis::read_output() {
 }
 
 tlm::tlm_sync_enum lpc_synthesis::nb_transport_fw( tlm::tlm_generic_payload& trans, tlm::tlm_phase& phase, sc_time& delay ) {
-	tlm::tlm_command cmd = trans.get_command();
-	sc_dt::uint64    addr = trans.get_address();
-	unsigned char*   ptr = trans.get_data_ptr();
-	unsigned int     len = trans.get_data_length();
-	unsigned char*   byt = trans.get_byte_enable_ptr();
-	unsigned int     wid = trans.get_streaming_width();
-	
-	wait(delay);
-	
-	double data;
-	memcpy(&data, ptr, len);
-
-    // Decode input_buffer index
-    int input_buffer_idx;
-
-    input_buffer_idx = 0;
-    input_buffer[input_buffer_idx] = data;
-	
-	//cout << name() << " Data received: " << data << endl;
+    tlm::tlm_command cmd = trans.get_command();
+    sc_dt::uint64    addr = trans.get_address();
+    unsigned char*   ptr = trans.get_data_ptr();
+    unsigned int     len = trans.get_data_length();
+    unsigned char*   byt = trans.get_byte_enable_ptr();
+    unsigned int     wid = trans.get_streaming_width();
 
     if (phase == tlm::BEGIN_REQ) {
+        // Check len
+
+        // Queue transaction
+        queue_trans_pending.push_front(&trans);
+
+        // Trigger event
+        event_thread_process.notify();
+
+        // Delay
+        wait(delay);
+
+        // Display message
         cout << name() << " BEGIN_REQ RECEIVED" << " at time " << sc_time_stamp() << endl;
+        //cout << name() << " BEGIN_REQ RECEIVED" << " TRANS ID " << id_extension->transaction_id << " at time " << sc_time_stamp() << endl;
+
+        // Obliged to set response status to indicate successful completion
+        trans.set_response_status( tlm::TLM_OK_RESPONSE );
+    } else {
+        cout << name() << " NB_TRANSPORT_FW unexpected phase" << " at time " << sc_time_stamp() << endl;
+        trans.set_response_status( tlm::TLM_GENERIC_ERROR_RESPONSE );
     }
-	
-	// Obliged to set response status to indicate successful completion
-	trans.set_response_status( tlm::TLM_OK_RESPONSE );
 
     return tlm::TLM_ACCEPTED;
-}
+};
+
+void lpc_synthesis::thread_process() {
+    tlm::tlm_phase phase_bw = tlm::BEGIN_RESP;
+
+    tlm::tlm_sync_enum status_bw;
+    sc_time delay_bw;
+    double data;
+    uint32_t encoded_data;
+    int count_coeff = 0;
+    double coeffs[N_POLES+2];
+
+    while (true) {
+        wait(event_thread_process);
+
+        // Execute Encoder with the information received
+        tlm::tlm_generic_payload* trans_pending = queue_trans_pending.back();
+        queue_trans_pending.pop_back();
+
+        unsigned char*   ptr = trans_pending->get_data_ptr();
+        unsigned int     len = trans_pending->get_data_length();
+
+        memcpy(&data, ptr, len);
+
+        // Store in buffer
+        coeffs[count_coeff] = data;
+
+        // Check if all the coeffs are ready to be processed
+        if (count_coeff == N_POLES+2-1) {
+            // Execute synthesis
+            execute(coeffs);
+
+            // FIXME
+            // Read synthesis results
+
+            // Restart counter
+            count_coeff = 0;
+        }
+
+        // Obliged to set response status to indicate successful completion
+        trans_pending->set_response_status( tlm::TLM_OK_RESPONSE );
+
+        cout << name() << " BEGIN_RESP SENT" << " at time " << sc_time_stamp() << endl;
+
+        // Backward call
+        delay_bw= sc_time(1, SC_NS);
+        status_bw = socket->nb_transport_bw( *trans_pending, phase_bw, delay_bw );
+
+        switch (status_bw) {
+            case tlm::TLM_ACCEPTED:
+                cout << name() << " NB_TRANSPORT_BW (STATUS TLM_ACCEPTED)" << " at time " << sc_time_stamp() << endl;
+                break;
+            default:
+                cout << name() << " NB_TRANSPORT_BW (STATUS not expected)" << " at time " << sc_time_stamp() << endl;
+                break;
+        }
+    }
+};

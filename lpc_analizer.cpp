@@ -42,7 +42,8 @@ void lpc_analizer::thread_process() {
 
             for (int i=0; i<LPC_ORDER; i++) {
                 //cout << "LPC_ANALIZER BEGIN_REQ SENT" << " TRANS ID " << id_extension->transaction_id << " at time " << sc_time_stamp() << endl;
-                cout << name() << " BEGIN_REQ SENT" << " at time " << sc_time_stamp() << " Coeff[" << i << "]: " << coeffs[i] << endl;
+                //cout << name() << " BEGIN_REQ SENT" << " at time " << sc_time_stamp() << " Coeff[" << i << "]: " << coeffs[i] << endl;
+                cout << name() << " BEGIN_REQ SENT" << " at time " << sc_time_stamp() << endl;
 
                 trans->set_data_ptr( reinterpret_cast<unsigned char*>(&coeffs[i]) );
 
