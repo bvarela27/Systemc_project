@@ -158,7 +158,7 @@ tlm::tlm_sync_enum lpc_synthesis::nb_transport_fw( tlm::tlm_generic_payload& tra
     // Decode input_buffer index
     int input_buffer_idx;
 
-    input_buffer_idx = (addr - SYN_POLO_0)/8;
+    input_buffer_idx = 0;
     input_buffer[input_buffer_idx] = data;
 	
 	//cout << name() << " Data received: " << data << endl;
