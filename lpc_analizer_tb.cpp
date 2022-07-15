@@ -86,7 +86,7 @@ SC_MODULE(Top) {
         lpc_analizer_i  = new lpc_analizer("LPC_ANALIZER");
         router_t        = new Router_t<1>("ROUTER_T");
         encoder         = new HammingEnc("HAMMING_ENC");
-        lpc_synthesis_i = new lpc_synthesis("LPC_ANALIZER");
+        lpc_synthesis_i = new lpc_synthesis("LPC_SYNTHESIS");
 
         /////////////////////////
         // Bind sockets

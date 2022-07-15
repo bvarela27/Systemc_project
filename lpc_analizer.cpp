@@ -102,14 +102,6 @@ tlm::tlm_sync_enum lpc_analizer::nb_transport_bw( tlm::tlm_generic_payload& tran
             SC_REPORT_ERROR("TLM2", "Response error from nb_transport");
         }
 
-        //cout << "trans/bw = { " << (cmd ? 'W' : 'R') << ", " << hex << adr
-        //     << " } , data = " << hex << data << " at time " << sc_time_stamp()
-        //     << ", delay = " << delay << endl;
-
-        cout << "trans/bw = { " << (cmd ? 'W' : 'R') << ", " << hex << adr
-             << " } ," << " at time " << sc_time_stamp()
-             << ", delay = " << delay << endl;
-
         //Delay
         wait(delay);
 
