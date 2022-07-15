@@ -24,7 +24,7 @@ void lpc_analizer::thread_process() {
     tlm::tlm_generic_payload* trans = new tlm::tlm_generic_payload;
     tlm::tlm_phase phase = tlm::BEGIN_REQ;
     tlm::tlm_sync_enum status;
-    sc_time delay = sc_time(1, SC_NS);
+    sc_time delay = sc_time(2, SC_NS);
 
     // Generate a random sequence of reads and writes
     while (true) {
