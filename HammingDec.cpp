@@ -62,7 +62,7 @@ void HammingDec::ECC(){
 }
 
 void HammingDec::write() {
-   dec_t.notify(2, SC_NS);
+   dec_t.notify(6, SC_NS);
 }
 
 tlm::tlm_sync_enum HammingDec::nb_transport_fw( tlm::tlm_generic_payload& trans, tlm::tlm_phase& phase, sc_time& delay ) {
@@ -125,7 +125,7 @@ void HammingDec::thread_process() {
         write();
 
         // Wait Decoder delay
-        wait(sc_time(9, SC_NS));
+        wait(sc_time(13, SC_NS));
 
         // Read Decoder output
         decoded_data = out.read();
