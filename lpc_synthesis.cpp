@@ -211,6 +211,8 @@ void lpc_synthesis::thread_process() {
 
             // Restart counter
             count_coeff = 0;
+        } else {
+            count_coeff++;
         }
 
         // Obliged to set response status to indicate successful completion
