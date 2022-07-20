@@ -195,5 +195,8 @@ int sc_main(int argc, char* argv[])  {
 
     sc_start(10000000,SC_NS);
 
+    cout << "Number of TLMs generated in analizer: " << top.lpc_synthesis_i->count_tlms << endl;
+    cout << "Number of TLMs received in synthesis: " << top.lpc_analizer_i->count_tlms << endl;
+
     return 0;
 }

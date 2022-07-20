@@ -22,6 +22,8 @@ SC_MODULE(lpc_synthesis) {
     double input_buffer[N_POLES+2];
     double LPC_output[WINDOW_LENGTH_2];
 
+    int count_tlms = 0;
+
     tlm_utils::simple_target_socket<lpc_synthesis> socket;
 
     // Queues

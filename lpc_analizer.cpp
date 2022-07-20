@@ -32,6 +32,7 @@ void lpc_analizer::thread_process() {
         if (valid) {
             for (int i=0; i<LPC_ORDER; i++) {
                 // Common fields
+                count_tlms++;
                 tlm::tlm_generic_payload* trans = new tlm::tlm_generic_payload;
                 trans->set_command( tlm::TLM_WRITE_COMMAND );
                 trans->set_data_length( 8 );

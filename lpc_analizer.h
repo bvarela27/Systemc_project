@@ -27,6 +27,7 @@ SC_MODULE (lpc_analizer)  {
     vector<double>        samples;
     double                sample_rate;
     int                   current_window;
+    int                   count_tlms = 0;
     sc_event              start_initiator;
 
     ////////////////////////////////////////////////////

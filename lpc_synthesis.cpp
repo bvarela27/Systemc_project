@@ -152,6 +152,7 @@ tlm::tlm_sync_enum lpc_synthesis::nb_transport_fw( tlm::tlm_generic_payload& tra
 
     if (phase == tlm::BEGIN_REQ) {
         // Check len
+        count_tlms++;
 
         // Queue transaction
         queue_trans_pending.push_front(&trans);
