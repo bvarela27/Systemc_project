@@ -65,8 +65,7 @@ tlm::tlm_sync_enum HammingEnc::nb_transport_fw( tlm::tlm_generic_payload& trans,
         queue_trans_pending.push_front(&trans);
 
         // Trigger event
-        //event_thread_process.notify();
-        event_thread_process.notify((queue_trans_pending.size())*DELAY_EVENT_NOTIFY_ENC, SC_NS);
+        event_thread_process.notify();
 
         // Delay
         wait(delay);
@@ -85,7 +84,7 @@ tlm::tlm_sync_enum HammingEnc::nb_transport_fw( tlm::tlm_generic_payload& trans,
     return tlm::TLM_ACCEPTED;
 };
 
-/*void HammingEnc::thread_notify() {
+void HammingEnc::thread_notify() {
     while (true) {
         wait(done);
 
@@ -97,7 +96,7 @@ tlm::tlm_sync_enum HammingEnc::nb_transport_fw( tlm::tlm_generic_payload& trans,
             event_thread_process.notify();
         }
     }
-};*/
+};
 
 void HammingEnc::thread_process() {
     tlm::tlm_phase phase_bw = tlm::BEGIN_RESP;
@@ -109,8 +108,7 @@ void HammingEnc::thread_process() {
     uint32_t encoded_data;
 
     while (true) {
-        //wait(event_thread_process);
-        wait();
+        wait(event_thread_process);
 
         // Execute Encoder with the information received
         tlm::tlm_generic_payload* trans_pending = queue_trans_pending.back();
@@ -181,7 +179,7 @@ void HammingEnc::thread_process() {
 			sprintf(txt, "Error from b_transport, response status = %s", trans->get_response_string().c_str());
 			SC_REPORT_ERROR("TLM-2", txt);
 		}
-        //done.notify();
+        done.notify();
     }
 
 };

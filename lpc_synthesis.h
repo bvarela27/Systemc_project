@@ -14,12 +14,11 @@
 #define WINDOW_LENGTH 240
 #define WINDOW_LENGTH_2 WINDOW_LENGTH/2
 #define N_POLES 24
-#define DELAY_EVENT_NOTIFY_LPC_SYN 3
 
 using namespace std;
 
 SC_MODULE(lpc_synthesis) {
-    sc_event_queue event_thread_process;
+    sc_event event_thread_process, done;
     double input_buffer[N_POLES+2];
     double LPC_output[WINDOW_LENGTH_2];
 
@@ -32,7 +31,7 @@ SC_MODULE(lpc_synthesis) {
         lpc_synthesis(sc_module_name lpc_synthesis) : sc_module(lpc_synthesis), socket("socket") {
         socket.register_nb_transport_fw(this, &lpc_synthesis::nb_transport_fw);
         SC_THREAD(thread_process);
-        sensitive << event_thread_process;
+        SC_THREAD(thread_notify);
     }
 
     void LPC_decoding();
@@ -43,6 +42,7 @@ SC_MODULE(lpc_synthesis) {
     arma::vec lcpDecode(arma::vec A, double *GFE);
 
     void thread_process();
+    void thread_notify();
 
     virtual tlm::tlm_sync_enum nb_transport_fw( tlm::tlm_generic_payload& trans, tlm::tlm_phase& phase, sc_time& delay );
 };

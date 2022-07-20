@@ -80,8 +80,7 @@ tlm::tlm_sync_enum HammingDec::nb_transport_fw( tlm::tlm_generic_payload& trans,
         queue_trans_pending.push_front(&trans);
 
         // Trigger event
-        //event_thread_process.notify();
-        event_thread_process.notify((queue_trans_pending.size())*DELAY_EVENT_NOTIFY_DEC, SC_NS);
+        event_thread_process.notify();
 
         // Delay
         wait(delay);
@@ -100,6 +99,20 @@ tlm::tlm_sync_enum HammingDec::nb_transport_fw( tlm::tlm_generic_payload& trans,
     return tlm::TLM_ACCEPTED;
 };
 
+void HammingDec::thread_notify() {
+    while (true) {
+        wait(done);
+
+        // Wait thread_process to start over
+        wait(1, SC_NS);
+
+        if (!queue_trans_pending.empty()) {
+            // Trigger event
+            event_thread_process.notify();
+        }
+    }
+};
+
 void HammingDec::thread_process() {
     tlm::tlm_phase phase_bw = tlm::BEGIN_RESP;
     tlm::tlm_phase phase_fw = tlm::BEGIN_REQ;
@@ -110,8 +123,7 @@ void HammingDec::thread_process() {
     uint32_t decoded_data;
 
     while (true) {
-        //wait(event_thread_process);
-        wait();
+        wait(event_thread_process);
 
         // Execute Encoder with the information received
         tlm::tlm_generic_payload* trans_pending = queue_trans_pending.back();
@@ -183,6 +195,7 @@ void HammingDec::thread_process() {
 			sprintf(txt, "Error from b_transport, response status = %s", trans->get_response_string().c_str());
 			SC_REPORT_ERROR("TLM-2", txt);
 		}
+        done.notify();
     }
 
 };
