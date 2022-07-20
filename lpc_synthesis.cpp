@@ -157,7 +157,7 @@ tlm::tlm_sync_enum lpc_synthesis::nb_transport_fw( tlm::tlm_generic_payload& tra
         queue_trans_pending.push_front(&trans);
 
         // Trigger event
-        event_thread_process.notify();
+        event_thread_process.notify((queue_trans_pending.size())*DELAY_EVENT_NOTIFY_LPC_SYN, SC_NS);
 
         // Delay
         wait(delay);
@@ -187,7 +187,7 @@ void lpc_synthesis::thread_process() {
     double coeffs[N_POLES+2];
 
     while (true) {
-        wait(event_thread_process);
+        wait();
 
         // Execute Encoder with the information received
         tlm::tlm_generic_payload* trans_pending = queue_trans_pending.back();
@@ -204,7 +204,8 @@ void lpc_synthesis::thread_process() {
         // Check if all the coeffs are ready to be processed
         if (count_coeff == N_POLES+2-1) {
             // Execute synthesis
-            execute(coeffs);
+            // FIXME
+            //execute(coeffs);
 
             // FIXME
             // Read synthesis results

@@ -14,11 +14,12 @@
 #define WINDOW_LENGTH 240
 #define WINDOW_LENGTH_2 WINDOW_LENGTH/2
 #define N_POLES 24
+#define DELAY_EVENT_NOTIFY_LPC_SYN 3
 
 using namespace std;
 
 SC_MODULE(lpc_synthesis) {
-    sc_event event_thread_process;
+    sc_event_queue event_thread_process;
     double input_buffer[N_POLES+2];
     double LPC_output[WINDOW_LENGTH_2];
 
@@ -31,6 +32,7 @@ SC_MODULE(lpc_synthesis) {
         lpc_synthesis(sc_module_name lpc_synthesis) : sc_module(lpc_synthesis), socket("socket") {
         socket.register_nb_transport_fw(this, &lpc_synthesis::nb_transport_fw);
         SC_THREAD(thread_process);
+        sensitive << event_thread_process;
     }
 
     void LPC_decoding();

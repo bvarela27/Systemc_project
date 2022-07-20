@@ -14,11 +14,13 @@
 #define N_HAMMING 31
 #define K_HAMMING 26
 #define M_HAMMING N_HAMMING-K_HAMMING
+#define DELAY_EVENT_NOTIFY_DEC 16
 
 using namespace std;
 
 SC_MODULE(HammingDec) {
-    sc_event ecc_t, dec_t, event_thread_process;
+    sc_event ecc_t, dec_t;
+    sc_event_queue event_thread_process;
     sc_signal< sc_uint<32> > in;
     sc_signal< sc_uint<32> > out;
     sc_bv<32> reg, decoded_val;
@@ -34,6 +36,7 @@ SC_MODULE(HammingDec) {
         target_socket.register_nb_transport_fw(this, &HammingDec::nb_transport_fw);
         initiator_socket.register_nb_transport_bw(this, &HammingDec::nb_transport_bw);
         SC_THREAD(thread_process);
+        sensitive << event_thread_process;
         SC_THREAD(decode);
         SC_THREAD(ECC);
     }

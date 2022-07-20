@@ -193,7 +193,7 @@ int sc_main(int argc, char* argv[])  {
     // Set samples and rate
     top.lpc_analizer_i->set_samples(samples, sample_rate);
 
-    sc_start(30,SC_NS);
+    sc_start(10000000,SC_NS);
 
     return 0;
 }

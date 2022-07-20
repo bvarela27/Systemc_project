@@ -24,23 +24,23 @@ void lpc_analizer::thread_process() {
     tlm::tlm_generic_payload* trans = new tlm::tlm_generic_payload;
     tlm::tlm_phase phase = tlm::BEGIN_REQ;
     tlm::tlm_sync_enum status;
-    sc_time delay = sc_time(2, SC_NS);
+    sc_time delay = sc_time(5, SC_NS);
 
     // Generate a random sequence of reads and writes
     while (true) {
         tie(valid, gain, coeffs) = compute_LPC_window();
         if (valid) {
-            // Common fields
-            tlm::tlm_generic_payload* trans = new tlm::tlm_generic_payload;
-            trans->set_command( tlm::TLM_WRITE_COMMAND );
-            trans->set_data_length( 8 );
-            trans->set_address( ENCODER_COEFF );
-            trans->set_streaming_width( 8 ); // = data_length to indicate no streaming
-            trans->set_byte_enable_ptr( 0 ); // 0 indicates unused
-            trans->set_dmi_allowed( false ); // Mandatory initial value
-            trans->set_response_status( tlm::TLM_INCOMPLETE_RESPONSE ); // Mandatory initial value
-
             for (int i=0; i<LPC_ORDER; i++) {
+                // Common fields
+                tlm::tlm_generic_payload* trans = new tlm::tlm_generic_payload;
+                trans->set_command( tlm::TLM_WRITE_COMMAND );
+                trans->set_data_length( 8 );
+                trans->set_address( ENCODER_COEFF );
+                trans->set_streaming_width( 8 ); // = data_length to indicate no streaming
+                trans->set_byte_enable_ptr( 0 ); // 0 indicates unused
+                trans->set_dmi_allowed( false ); // Mandatory initial value
+                trans->set_response_status( tlm::TLM_INCOMPLETE_RESPONSE ); // Mandatory initial value
+
                 //cout << "LPC_ANALIZER BEGIN_REQ SENT" << " TRANS ID " << id_extension->transaction_id << " at time " << sc_time_stamp() << endl;
                 //cout << name() << " BEGIN_REQ SENT" << " at time " << sc_time_stamp() << " Coeff[" << i << "]: " << coeffs[i] << endl;
                 cout << name() << " BEGIN_REQ SENT" << " at time " << sc_time_stamp() << endl;

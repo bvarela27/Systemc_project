@@ -13,11 +13,13 @@
 #define N_HAMMING 31
 #define K_HAMMING 26
 #define M_HAMMING N_HAMMING-K_HAMMING
+#define DELAY_EVENT_NOTIFY_ENC 16
 
 using namespace std;
 
 SC_MODULE(HammingEnc) {
-    sc_event enc_t, event_thread_process;
+    sc_event enc_t;
+    sc_event_queue event_thread_process;//, done;
     sc_bv<32> reg = 0;
     sc_bv<32> temp = 0;
 
@@ -31,10 +33,13 @@ SC_MODULE(HammingEnc) {
         target_socket.register_nb_transport_fw(this, &HammingEnc::nb_transport_fw);
         initiator_socket.register_nb_transport_bw(this, &HammingEnc::nb_transport_bw);
         SC_THREAD(thread_process);
+        sensitive << event_thread_process;
         SC_THREAD(encode);
+        //SC_THREAD(thread_notify);
     }
 
     void thread_process();
+    //void thread_notify();
 
     virtual tlm::tlm_sync_enum nb_transport_fw( tlm::tlm_generic_payload& trans, tlm::tlm_phase& phase, sc_time& delay );
     virtual tlm::tlm_sync_enum nb_transport_bw( tlm::tlm_generic_payload& trans, tlm::tlm_phase& phase, sc_time& delay );

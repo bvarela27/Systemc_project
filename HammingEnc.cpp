@@ -65,7 +65,8 @@ tlm::tlm_sync_enum HammingEnc::nb_transport_fw( tlm::tlm_generic_payload& trans,
         queue_trans_pending.push_front(&trans);
 
         // Trigger event
-        event_thread_process.notify();
+        //event_thread_process.notify();
+        event_thread_process.notify((queue_trans_pending.size())*DELAY_EVENT_NOTIFY_ENC, SC_NS);
 
         // Delay
         wait(delay);
@@ -84,6 +85,20 @@ tlm::tlm_sync_enum HammingEnc::nb_transport_fw( tlm::tlm_generic_payload& trans,
     return tlm::TLM_ACCEPTED;
 };
 
+/*void HammingEnc::thread_notify() {
+    while (true) {
+        wait(done);
+
+        // Wait thread_process to start over
+        wait(1, SC_NS);
+
+        if (!queue_trans_pending.empty()) {
+            // Trigger event
+            event_thread_process.notify();
+        }
+    }
+};*/
+
 void HammingEnc::thread_process() {
     tlm::tlm_phase phase_bw = tlm::BEGIN_RESP;
     tlm::tlm_phase phase_fw = tlm::BEGIN_REQ;
@@ -94,7 +109,8 @@ void HammingEnc::thread_process() {
     uint32_t encoded_data;
 
     while (true) {
-        wait(event_thread_process);
+        //wait(event_thread_process);
+        wait();
 
         // Execute Encoder with the information received
         tlm::tlm_generic_payload* trans_pending = queue_trans_pending.back();
@@ -134,7 +150,7 @@ void HammingEnc::thread_process() {
 
         // Forward call Decoder
 	    tlm::tlm_generic_payload* trans = new tlm::tlm_generic_payload;
-		delay_fw = sc_time(1, SC_NS);
+		delay_fw = sc_time(3, SC_NS);
 
 		trans->set_command( tlm::TLM_WRITE_COMMAND );
         trans->set_address( DECODER_COEFF );
@@ -165,6 +181,7 @@ void HammingEnc::thread_process() {
 			sprintf(txt, "Error from b_transport, response status = %s", trans->get_response_string().c_str());
 			SC_REPORT_ERROR("TLM-2", txt);
 		}
+        //done.notify();
     }
 
 };

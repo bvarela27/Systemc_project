@@ -80,7 +80,8 @@ tlm::tlm_sync_enum HammingDec::nb_transport_fw( tlm::tlm_generic_payload& trans,
         queue_trans_pending.push_front(&trans);
 
         // Trigger event
-        event_thread_process.notify();
+        //event_thread_process.notify();
+        event_thread_process.notify((queue_trans_pending.size())*DELAY_EVENT_NOTIFY_DEC, SC_NS);
 
         // Delay
         wait(delay);
@@ -109,7 +110,8 @@ void HammingDec::thread_process() {
     uint32_t decoded_data;
 
     while (true) {
-        wait(event_thread_process);
+        //wait(event_thread_process);
+        wait();
 
         // Execute Encoder with the information received
         tlm::tlm_generic_payload* trans_pending = queue_trans_pending.back();
