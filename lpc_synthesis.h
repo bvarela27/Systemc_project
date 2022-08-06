@@ -5,7 +5,7 @@
 #include <math.h>
 #include <random>
 #include <armadillo>
-#include <list>
+#include <queue>
 
 #include "tlm.h"
 #include "tlm_utils/simple_initiator_socket.h"
@@ -18,16 +18,15 @@
 using namespace std;
 
 SC_MODULE(lpc_synthesis) {
-    sc_event event_thread_process, done;
+    sc_event event_thread_process,  done;
     double input_buffer[N_POLES+2];
     double LPC_output[WINDOW_LENGTH_2];
-
-    int count_tlms = 0;
 
     tlm_utils::simple_target_socket<lpc_synthesis> socket;
 
     // Queues
-    list<tlm::tlm_generic_payload*> queue_trans_pending;
+    queue<tlm::tlm_generic_payload*> trans_pending;
+    tlm::tlm_phase phase_pending;
 
     SC_HAS_PROCESS(lpc_synthesis);
         lpc_synthesis(sc_module_name lpc_synthesis) : sc_module(lpc_synthesis), socket("socket") {

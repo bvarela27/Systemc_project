@@ -29,6 +29,7 @@ struct Router_t: sc_module {
     tlm_utils::simple_initiator_socket<Router_t> initiator_socket_enc;
     tlm_utils::simple_initiator_socket<Router_t> initiator_socket_rec;
 
+
     SC_CTOR(Router_t) : target_socket_lpc("target_socket_lpc"), target_socket_enc("target_socket_enc"), initiator_socket_enc("initiator_socket_enc"), initiator_socket_rec("initiator_socket_rec") {
         // Register callbacks for incoming interface method calls
         target_socket_lpc.register_nb_transport_fw(this, &Router_t::nb_transport_fw);
@@ -47,7 +48,7 @@ struct Router_t: sc_module {
         } else {
             status = ( initiator_socket_rec )->nb_transport_fw( trans, phase, delay );
         }
-        
+
         return status;
     }
 
@@ -180,7 +181,6 @@ int sc_main(int argc, char* argv[])  {
     
     sc_start();
 
-    ////////////////////////////////////////////////////
     // Read WAV file
     AudioFile<double> audioFile;
     audioFile.load("speech.wav");
@@ -189,14 +189,10 @@ int sc_main(int argc, char* argv[])  {
     int sample_rate = 8000;
     vector<double> samples = audioFile.samples[channel];
 
-    ////////////////////////////////////////////////////
     // Set samples and rate
     top.lpc_analizer_i->set_samples(samples, sample_rate);
 
-    sc_start(10000000,SC_NS);
-
-    cout << "Number of TLMs generated in analizer: " << top.lpc_synthesis_i->count_tlms << endl;
-    cout << "Number of TLMs received in synthesis: " << top.lpc_analizer_i->count_tlms << endl;
+    sc_start(1000,SC_NS);
 
     return 0;
 }

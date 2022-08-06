@@ -1,5 +1,22 @@
 #include "lpc_synthesis.h"
 #include "register_map.h"
+#include "26bit.h"
+
+// User-defined extension class
+struct ID_extension: tlm::tlm_extension<ID_extension> {
+  ID_extension() : transaction_id(0) {}
+  virtual tlm_extension_base* clone() const { // Must override pure virtual clone method
+    ID_extension* t = new ID_extension;
+    t->transaction_id = this->transaction_id;
+    return t;
+  }
+
+  // Must override pure virtual copy_from method
+  virtual void copy_from(tlm_extension_base const &ext) {
+    transaction_id = static_cast<ID_extension const &>(ext).transaction_id;
+  }
+  unsigned int transaction_id;
+};
 
 //Decoder Function
 arma::vec lpc_synthesis::lcpDecode(arma::vec A, double *GFE){
@@ -143,29 +160,24 @@ double* lpc_synthesis::read_output() {
 }
 
 tlm::tlm_sync_enum lpc_synthesis::nb_transport_fw( tlm::tlm_generic_payload& trans, tlm::tlm_phase& phase, sc_time& delay ) {
-    tlm::tlm_command cmd = trans.get_command();
-    sc_dt::uint64    addr = trans.get_address();
-    unsigned char*   ptr = trans.get_data_ptr();
-    unsigned int     len = trans.get_data_length();
-    unsigned char*   byt = trans.get_byte_enable_ptr();
-    unsigned int     wid = trans.get_streaming_width();
+    ID_extension* id_extension = new ID_extension;
+    trans.get_extension(id_extension);
 
     if (phase == tlm::BEGIN_REQ) {
         // Check len
-        count_tlms++;
 
         // Queue transaction
-        queue_trans_pending.push_front(&trans);
-
-        // Trigger event
-        event_thread_process.notify();
+        trans_pending.push(&trans);
+        phase_pending=phase;
 
         // Delay
         wait(delay);
 
+        // Trigger event
+        event_thread_process.notify();
+
         // Display message
-        cout << name() << " BEGIN_REQ RECEIVED" << " at time " << sc_time_stamp() << endl;
-        //cout << name() << " BEGIN_REQ RECEIVED" << " TRANS ID " << id_extension->transaction_id << " at time " << sc_time_stamp() << endl;
+        cout << name() << " BEGIN_REQ RECEIVED " << " TRANS ID " << id_extension->transaction_id << " at time " << sc_time_stamp() << endl;
 
         // Obliged to set response status to indicate successful completion
         trans.set_response_status( tlm::TLM_OK_RESPONSE );
@@ -173,7 +185,6 @@ tlm::tlm_sync_enum lpc_synthesis::nb_transport_fw( tlm::tlm_generic_payload& tra
         cout << name() << " NB_TRANSPORT_FW unexpected phase" << " at time " << sc_time_stamp() << endl;
         trans.set_response_status( tlm::TLM_GENERIC_ERROR_RESPONSE );
     }
-
     return tlm::TLM_ACCEPTED;
 };
 
@@ -184,7 +195,7 @@ void lpc_synthesis::thread_notify() {
         // Wait thread_process to start over
         wait(1, SC_NS);
 
-        if (!queue_trans_pending.empty()) {
+        if (!trans_pending.empty()) {
             // Trigger event
             event_thread_process.notify();
         }
@@ -193,34 +204,37 @@ void lpc_synthesis::thread_notify() {
 
 void lpc_synthesis::thread_process() {
     tlm::tlm_phase phase_bw = tlm::BEGIN_RESP;
-
     tlm::tlm_sync_enum status_bw;
     sc_time delay_bw;
-    double data;
+    int32_t data;
     uint32_t encoded_data;
     int count_coeff = 0;
     double coeffs[N_POLES+2];
+    tlm::tlm_generic_payload * current_trans;
 
     while (true) {
+
         wait(event_thread_process);
-
         // Execute Encoder with the information received
-        tlm::tlm_generic_payload* trans_pending = queue_trans_pending.back();
-        queue_trans_pending.pop_back();
+        current_trans = trans_pending.front();
+        trans_pending.pop();
+        unsigned char*   ptr = current_trans->get_data_ptr();
+        unsigned int     len = current_trans->get_data_length();
+        ID_extension* id_extension = new ID_extension;
+        current_trans->get_extension( id_extension );
 
-        unsigned char*   ptr = trans_pending->get_data_ptr();
-        unsigned int     len = trans_pending->get_data_length();
-
-        memcpy(&data, ptr, len);
+        data = *reinterpret_cast<int32_t*>(ptr);
 
         // Store in buffer
-        coeffs[count_coeff] = data;
-
+        coeffs[count_coeff] = FixedToDouble(data);
+        if (count_coeff == N_POLES){
+            coeffs[count_coeff] = coeffs[count_coeff]/1000;
+        }
+        cout<<"SYNTH "<< coeffs[count_coeff]<<endl;
         // Check if all the coeffs are ready to be processed
         if (count_coeff == N_POLES+2-1) {
             // Execute synthesis
-            // FIXME
-            //execute(coeffs);
+            execute(coeffs);
 
             // FIXME
             // Read synthesis results
@@ -232,13 +246,12 @@ void lpc_synthesis::thread_process() {
         }
 
         // Obliged to set response status to indicate successful completion
-        trans_pending->set_response_status( tlm::TLM_OK_RESPONSE );
-
-        cout << name() << " BEGIN_RESP SENT" << " at time " << sc_time_stamp() << endl;
+        current_trans->set_response_status( tlm::TLM_OK_RESPONSE );
 
         // Backward call
+        cout << name() << " BEGIN_RESP SENT" << "    " << " TRANS ID " << id_extension->transaction_id << " at time " << sc_time_stamp() << endl;
         delay_bw= sc_time(1, SC_NS);
-        status_bw = socket->nb_transport_bw( *trans_pending, phase_bw, delay_bw );
+        status_bw = socket->nb_transport_bw( *current_trans, phase_bw, delay_bw );
 
         switch (status_bw) {
             case tlm::TLM_ACCEPTED:

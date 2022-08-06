@@ -4,7 +4,7 @@
 #include <iostream>
 #include <systemc.h>
 #include <stdlib.h>
-#include <list>
+#include <queue>
 #include "register_map.h"
 
 #include "tlm.h"
@@ -20,13 +20,13 @@ using namespace std;
 SC_MODULE(HammingDec) {
     sc_event ecc_t, dec_t, event_thread_process, done;
     sc_signal< sc_uint<32> > in;
-    sc_signal< sc_uint<32> > out;
+    sc_signal< sc_int<32> > out;
     sc_bv<32> reg, decoded_val;
     sc_bv<32> syn;
 
     // Queues
-    list<tlm::tlm_generic_payload*> queue_trans_pending;
-
+    queue<tlm::tlm_generic_payload*> trans_pending;
+    tlm::tlm_phase phase_pending;
     tlm_utils::simple_target_socket<HammingDec> target_socket;
     tlm_utils::simple_initiator_socket<HammingDec> initiator_socket;
 
