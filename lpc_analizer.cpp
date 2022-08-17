@@ -1,13 +1,10 @@
 #include "systemc.h"
 #include <iostream>
-#include <vector>
-#include <armadillo>
 #include <math.h>
-#include "hanning.h"
 #include "lpc_analizer.h"
 #include "tlm.h"
 #include "register_map.h"
-#include "pitch_detection.h"
+
 using namespace std;
 
 // User-defined extension class
@@ -29,31 +26,20 @@ struct ID_extension: tlm::tlm_extension<ID_extension> {
 // Thread process (Initiator)
 void lpc_analizer::thread_process() {
     // Local variables
-    bool valid;
-    int32_t gain;
-    int32_t pitch;
-    vector<int32_t> coeffs;
-
-    // Wait the user to set the samples
-    wait(start_initiator);
     tlm::tlm_phase phase = tlm::BEGIN_REQ;
     tlm::tlm_sync_enum status;
     sc_time delay = sc_time(5, SC_NS);
 
-    vector<int32_t> trans_data;
-    // Generate a random sequence of reads and writes
     uint32_t window_counter = 0;
     while (true) {
-        tie(valid, gain, pitch, coeffs) = compute_LPC_window();
+        // Wait the user to set the samples
+        wait(start_initiator);
 
-        trans_data.resize((coeffs.size()+2)*(1+window_counter));
-        copy(coeffs.begin(), coeffs.end(),trans_data.begin() + (coeffs.size()+2)*window_counter);
-        trans_data[(LPC_ORDER) + (LPC_ORDER+2)*window_counter] = gain;
-        trans_data[(LPC_ORDER+1) + (LPC_ORDER+2)*window_counter] = pitch;
+        int32_t trans_data[WINDOW+2];
 
-        coeffs.clear();
+        compute_LPC_window(trans_data);
 
-        if (valid && (window_counter<2)) {
+        if (window_counter<2) {
             // Common fields
             for (uint32_t i=0; i<LPC_ORDER+2; i++) {
                 tlm::tlm_generic_payload *trans = new tlm::tlm_generic_payload;
@@ -70,7 +56,7 @@ void lpc_analizer::thread_process() {
 
                 cout << name() << "  BEGIN_REQ SENT " << "    " << " TRANS ID " << id_extension->transaction_id << " at time " << sc_time_stamp() << endl;
 
-                trans->set_data_ptr( reinterpret_cast<unsigned char*>(&trans_data[i+26*window_counter]));
+                trans->set_data_ptr( reinterpret_cast<unsigned char*>(&trans_data[i]));
 
                 status = socket->nb_transport_fw(*trans, phase, delay );
 
@@ -89,17 +75,14 @@ void lpc_analizer::thread_process() {
                     sprintf(txt, "Error from b_transport, response status = %s", trans->get_response_string().c_str());
                     SC_REPORT_ERROR("TLM-2", txt);
                 }
-
             }
-
-
         } else {
-        break;
+            break;
         }
         window_counter++;
     }
-    while(true){
-    wait(1,SC_NS);
+    while(true) {
+        wait(1,SC_NS);
     }
 };
 
@@ -125,125 +108,122 @@ tlm::tlm_sync_enum lpc_analizer::nb_transport_bw( tlm::tlm_generic_payload& tran
     return tlm::TLM_ACCEPTED;
 };
 
+// Set sample
+void lpc_analizer::set_sample(double sample) {
+    samples[sample_number] = sample;
+    sample_number++;
 
-// Set samples and sample_rate
-void lpc_analizer::set_samples(vector<double> samples_arg, double sample_rate_arg = 44100) {
-    samples = samples_arg;
-    sample_rate = sample_rate_arg;
+    if (sample_number == WINDOW) {
+        // Normalize samples
+        normalize_samples();
 
-    // Set pointer to the first window
-    current_window = 0;
+        // OLA
+        set_OLA();
 
-    normalize_samples();
+        // Move last 120 samples to the beginnig of the array (overlap)
+        for (int i=0; i<WINDOW/2; i++) {
+            samples[i] = samples[WINDOW/2+i];
+        }
 
-    set_OLA();
+        // Restart counter from 120
+        sample_number = WINDOW/2;
 
-    // Notify initiator
-    start_initiator.notify(0, SC_NS);
+        // Notify initiator to send new coeffs
+        start_initiator.notify(0, SC_NS);
+    }
 };
 
 // Normalize function
 void lpc_analizer::normalize_samples() {
     // Samples abs values
-    vector<double> samples_abs;
-    for (int i=0; i<samples.size(); i++) {
-        samples_abs.push_back(abs(samples[i]));
+    double samples_abs[WINDOW];
+
+    for (int i=0; i<WINDOW; i++) {
+        samples_abs[i] = abs(samples[i]);
     }
 
     // Get max value
-    double max_sample_value = *max_element(samples_abs.begin(), samples_abs.end());
+    double max_sample_value = *max_element(samples_abs, samples_abs+WINDOW);
     
     // Normalize samples
-    for (int i=0; i<samples.size(); i++) {
-        samples[i] = 0.9*samples[i]/max_sample_value;
+    for (int i=0; i<WINDOW; i++) {
+        samples_normalized[i] = 0.9*samples[i]/max_sample_value;
     }
-};
-
-// Hann window 30ms
-double lpc_analizer::get_window_points () {
-    return floor(WINDOW_SIZE_IN_S*sample_rate);
-};
-
-double* lpc_analizer::get_hann_window (double window_points) {
-    return hanning(window_points, 1);
 };
 
 // OLA
 void lpc_analizer::set_OLA() {
-    double window_points = get_window_points();
-    double* hann_window = get_hann_window(window_points);
+    double hann_window[WINDOW];
 
-    double overlap_size = floor(window_points*(double)(OVERLAP_PERCENTAGE)/(double)(100));
-    double num_windows = ((samples.size()-window_points) > 0) ? ceil((samples.size()-window_points)/overlap_size) + 1 : 1;
+    hanning(hann_window,WINDOW);
 
-    arma::Mat<double> OLA_int(window_points, num_windows, arma::fill::zeros);
-
-    for (int j=0; j<num_windows; j++) {
-        for (int i=0; i<window_points; i++) {
-            if ((j)*overlap_size+i < samples.size()) {
-                OLA_int(i,j) = hann_window[i] * samples[(j)*overlap_size+i];
-            }
-        }
+    for(int i = 0; i < WINDOW; i++) {
+        stacked[i] = hann_window[i]*samples_normalized[i];
     }
-
-    OLA = OLA_int;
 };
 
 // LPC Analizer
-tuple <arma::Mat<double>, double> lpc_analizer::compute_LPC(arma::Mat<double> samples, int p) {
+void lpc_analizer::compute_LPC(double* poles_gain) {
+    double A[WINDOW-1][N_POLES] = {0};
+    double b[WINDOW-1] = {0};
+    double poles[N] = {0};
+    double U[M][N];
+    double V[N][N];
+    double Dum[N];
+    double mul_A_a[M];
+    double error[N];
+    double S[N];
+    double x[N];
 
-    int N = samples.size();
-    arma::Mat<double> b (N-1, 1);
+    memcpy(b,stacked+1,(WINDOW-1)*sizeof(double));
 
-    for (int i=0; i<N-1; i++) {
-        b(i, 0) = samples(i+1, 0);
-    }
-
-    arma::Mat<double> temp;
-    arma::Mat<double> A (N-1, p, arma::fill::zeros);
-
-    // Create autocorrelation matrix
-    for (int i=0; i<p; i++) {
-        temp = shift(samples, i);
-        for (int j=0; j<N-1; j++) {
-            A(j, i)  = temp(j, 0);
+    for(int j = 0; j<N_POLES; j++) {
+        for(int i = j; i < (WINDOW-j-2); i++) {
+            A[i][j] = stacked[i-j];
         }
     }
 
-    // Solve Levinson-Gurbin recursion
-    arma::Mat<double> a = solve(A, b);
+    int err = Singular_Value_Decomposition((double *)A,M,N,(double *)U,S,(double*)V,Dum);
+    Singular_Value_Decomposition_Solve((double *)U,S,(double *)V,0,M,N,b,poles);
 
-    // Calculate the errors errors
-    arma::Mat<double> error = b - A*a;
+    Multiply_Matrices(mul_A_a,(double *)A,M,N,poles,1);
+    Subtract_Matrices(error,b,mul_A_a,M,1);
 
-    // Calculate variance of errors
-    arma::Mat<double> g = var(error);
+    double G = variance(error,M);
 
-    return make_tuple(a, (double)g(0,0));
+    // Fill new array with poles and gain
+    for (int i=0; i<N; i++) {
+        poles_gain[i] = poles[i];
+    }
+    poles_gain[N] = G;
+
+    return;
 };
 
-tuple <bool, int32_t, int32_t, vector<int32_t>> lpc_analizer::compute_LPC_window() {
-    bool valid = 0;
+void lpc_analizer::compute_LPC_window(int32_t* poles_gain_pitch) {
+    bool valid = 1;
     double gain = 0;
     double pitch = 0;
-    vector<int32_t> coeffs;
-    arma::Mat<double> coeffs_matrix;
-    // There are NOT windows pending to be processed
-    if (current_window >= OLA.n_cols) {
-        valid = 0;
-    // There are windows pending to be processed
-    } else {
-        valid = 1;
-        tie(coeffs_matrix, gain) = compute_LPC(OLA.col(current_window), LPC_ORDER);
-        //PITCH
-        vec test = OLA.col(current_window);
-        pitch = get_Pitch(test);
-        for (int i=0; i<coeffs_matrix.n_rows; i++) {
-            coeffs.push_back(DoubleToFixed(coeffs_matrix(i, 0)));
+    double poles_gain[N_POLES+1];
+
+    compute_LPC(poles_gain);
+
+    // Pitch
+    double f[N_FFT];
+    frequency(f, 1);
+    pitch = find_pitch( stacked, f, WINDOW);
+
+    for (int i=0; i<N_POLES+1; i++) {
+        if (i == N_POLES) { // Gain
+            poles_gain_pitch[i] = DoubleToFixed(poles_gain[i]*1000);
+        } else {            // Coeff
+            poles_gain_pitch[i] = DoubleToFixed(poles_gain[i]);
         }
-        current_window++;
     }
+    // Pitch
+    poles_gain_pitch[N_POLES+1] = DoubleToFixed(pitch);
 
+    current_window++;
 
-    return make_tuple(valid, DoubleToFixed(gain*1000) , DoubleToFixed(pitch) , coeffs); //ADD PITCH
+    return;
 };

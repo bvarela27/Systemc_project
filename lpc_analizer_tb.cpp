@@ -186,11 +186,14 @@ int sc_main(int argc, char* argv[])  {
     audioFile.load("speech.wav");
 
     int channel = 0;
-    int sample_rate = 8000;
     vector<double> samples = audioFile.samples[channel];
 
-    // Set samples and rate
-    top.lpc_analizer_i->set_samples(samples, sample_rate);
+    // Set samples
+    for (int i = 0; i<361; i++) {
+        top.lpc_analizer_i->set_sample(samples[i]);
+        cout << "Set sample[" << i << "]:" << endl;
+        sc_start(125,SC_US);
+    }
 
     sc_start(1000,SC_NS);
 

@@ -13,7 +13,9 @@
 
 #define WINDOW_LENGTH 240
 #define WINDOW_LENGTH_2 WINDOW_LENGTH/2
-#define N_POLES 24
+#ifndef N_POLES
+    #define N_POLES 24
+#endif
 
 using namespace std;
 

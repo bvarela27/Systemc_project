@@ -3,9 +3,10 @@
 
 #include "systemc.h"
 #include <iostream>
-#include <vector>
-#include <armadillo>
 #include "26bit.h"
+#include "pitch.h"
+#include "support_math.h"
+#include "singular_value_decomposition.h"
 #include "tlm.h"
 #include "tlm_utils/simple_initiator_socket.h"
 #include "tlm_utils/simple_target_socket.h"
@@ -14,7 +15,13 @@ using namespace std;
 
 ////////////////////////////////
 // Defines
+#define WINDOW              240
+#define M                   WINDOW-1
 #define LPC_ORDER           24
+#ifndef N_POLES
+    #define N_POLES             LPC_ORDER
+#endif
+#define N                   N_POLES
 #define WINDOW_SIZE_IN_S    0.03
 #define OVERLAP_PERCENTAGE  50
 
@@ -23,11 +30,12 @@ using namespace std;
 SC_MODULE (lpc_analizer)  {
 
     // Internal variables
-    arma::Mat<double>     OLA;
-    vector<double>        samples;
-    double                sample_rate;
-    int                   current_window;
-    sc_event              start_initiator, response_event;
+    double                  stacked[WINDOW];
+    double                  samples[WINDOW];
+    double                  samples_normalized[WINDOW];
+    int                     current_window, sample_number;
+
+    sc_event                start_initiator;
 
     // TLM initiator
     tlm_utils::simple_initiator_socket<lpc_analizer> socket;
@@ -38,24 +46,26 @@ SC_MODULE (lpc_analizer)  {
         socket.register_nb_transport_bw(this, &lpc_analizer::nb_transport_bw);
         SC_THREAD(thread_process);
         current_window = 0;
+        sample_number = 0;
     }
 
     // Thread process (Initiator)
     void thread_process();
+
     // Backward path non-blocking (Initiator)
     virtual tlm::tlm_sync_enum nb_transport_bw( tlm::tlm_generic_payload& trans, tlm::tlm_phase& phase, sc_time& delay );
+
     // Set samples and sample_rate
-    void set_samples(vector<double> samples_arg, double sample_rate_arg);
+    void set_sample(double sample);
+
     // Normalize function
     void normalize_samples();
-    // Hann window 30ms
-    double get_window_points();
-    double* get_hann_window(double window_points);
+
     // Overlap-Add
     void set_OLA();
 
     // LPC Analizer
-    tuple <arma::Mat<double>, double> compute_LPC(arma::Mat<double> samples, int p);
-    tuple <bool, int32_t , int32_t, vector<int32_t>> compute_LPC_window();
+    void compute_LPC(double* poles_gain);
+    void compute_LPC_window(int32_t* poles_gain_pitch);
 };
 #endif
