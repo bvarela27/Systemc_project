@@ -96,6 +96,9 @@ void Channel::thread_process() {
                 demod0.sp.set_threshold(data);
                 cout << name() << " Register Sampler Threshold updated" << " at time " << sc_time_stamp() << endl;
                 break;
+            case CHANNEL_COEFF:
+                prot_gen0.store_data(data);
+                break;
             default:
                 SC_REPORT_ERROR("TLM-2", "ERROR: Unexpected address received in the Channel module");
                 break;

@@ -10,6 +10,7 @@
 #include "HammingEnc.h"
 #include "HammingDec.h"
 #include "AudioCapture.h"
+#include "Channel.h"
 #include "register_map.h"
 
 #define ROUTER_TARGET_DECODER 0
@@ -147,6 +148,7 @@ SC_MODULE(Top) {
     HammingEnc*    encoder;
     HammingDec*    decoder;
     lpc_synthesis* lpc_synthesis_i;
+    Channel*       Channel0;
     
 
     SC_CTOR(Top) {
@@ -158,6 +160,7 @@ SC_MODULE(Top) {
         encoder         = new HammingEnc("HAMMING_ENC");
         decoder         = new HammingDec("HAMMING_DEC");
         lpc_synthesis_i = new lpc_synthesis("LPC_SYNTHESIS");
+        Channel0        = new Channel("CHANNEL");
 
         /////////////////////////
         // Bind sockets
@@ -173,7 +176,7 @@ SC_MODULE(Top) {
 
         // Router
         router_t->initiator_socket_enc.bind( encoder->target_socket );
-        router_t->initiator_socket_channel.bind( router_r->target_socket_tra );
+        router_t->initiator_socket_channel.bind( Channel0->target_socket );
         router_t->initiator_socket_audio.bind( AudioCapture0->target_socket );
         router_t->initiator_socket_lpc.bind( lpc_analizer_i->target_socket );
         router_r->initiator_socket_dec.bind( decoder->target_socket );
@@ -181,6 +184,9 @@ SC_MODULE(Top) {
 
         // Decoder
         decoder->initiator_socket.bind( router_r->target_socket_dec );
+
+        // Channel
+        Channel0->initiator_socket.bind( router_r->target_socket_tra );
     }
 };
 
