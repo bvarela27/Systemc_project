@@ -20,7 +20,7 @@ void microphone::processing() {
         out.write(0.0);
     } else {
         out.write(samples[index]*(pow(2, 32-1)-1));
-        cout << "Time: " << get_time().to_seconds() << " Samples[" << index << "]: " << samples[index]*pow(2, 32-1) << endl;
+        //cout << "Time: " << get_time().to_seconds() << " Samples[" << index << "]: " << samples[index]*pow(2, 32-1) << endl;
         index++;
     }
 }

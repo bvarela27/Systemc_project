@@ -139,7 +139,7 @@ void HammingEnc::thread_process() {
         delay_fw = sc_time(2, SC_NS);
 
         trans->set_command( tlm::TLM_WRITE_COMMAND );
-        trans->set_address( DECODER_COEFF );
+        trans->set_address( CHANNEL_COEFF );
         trans->set_data_length( 8 );
         trans->set_streaming_width( 8 ); // = data_length to indicate no streaming
         trans->set_byte_enable_ptr( 0 ); // 0 indicates unused

@@ -169,7 +169,7 @@ void AudioCapture::io_request() {
         int adc_out_int = (int) adc_out_static_cast;
 
         trans->set_command( tlm::TLM_WRITE_COMMAND );
-        trans->set_address( DECODER_COEFF );
+        trans->set_address( ANALIZER_COEFF );
         trans->set_data_length( 8 );
         trans->set_streaming_width( 8 ); // = data_length to indicate no streaming
         trans->set_byte_enable_ptr( 0 ); // 0 indicates unused

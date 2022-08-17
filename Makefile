@@ -2,6 +2,15 @@ export SYSTEMC_HOME=/usr/local/systemc-2.3.2
 export SYSTEMC_AMS_HOME=/usr/local/systemc-ams-2.3
 export LD_LIBRARY_PATH=$(SYSTEMC_AMS_HOME)/lib-linux64/:$(SYSTEMC_HOME)/lib-linux64/
 
+compile_full:
+	@g++ -I$(SYSTEMC_HOME)/include -L$(SYSTEMC_HOME)/lib-linux64 -I$(SYSTEMC_AMS_HOME)/include -L$(SYSTEMC_AMS_HOME)/lib-linux64 \
+	microphone.cpp filter_decoup.cpp AudioCapture.cpp \
+	Channel.cpp mixer.cpp sampler.cpp carrier.cpp rectifier.cpp filter.cpp protocol_gen.cpp protocol_det.cpp \
+	full_tb.cpp lpc_analizer.cpp lpc_synthesis.cpp HammingEnc.cpp HammingDec.cpp \
+	pitch.c fft.c singular_value_decomposition.c support_math.c -lsystemc -lsystemc-ams -lm -o full.o -larmadillo
+
+run_full:
+	./full.o
 
 compile_tlm_only:
 	g++ -I$(SYSTEMC_HOME)/include -L$(SYSTEMC_HOME)/lib-linux64 tlm_tb.cpp lpc_analizer.cpp lpc_synthesis.cpp HammingEnc.cpp HammingDec.cpp \

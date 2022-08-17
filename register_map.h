@@ -39,4 +39,8 @@
 // Carrier
 #define CARRIER_FREQUENCY               0x3FC800A0
 
+////////////////////
+// Carrier
+#define CHANNEL_COEFF                   0x3FC800B0
+
 #endif

@@ -23,6 +23,73 @@ struct ID_extension: tlm::tlm_extension<ID_extension> {
   unsigned int transaction_id;
 };
 
+tlm::tlm_sync_enum lpc_analizer::nb_transport_fw( tlm::tlm_generic_payload& trans, tlm::tlm_phase& phase, sc_time& delay ) {
+    ID_extension* id_extension = new ID_extension;
+    trans.get_extension( id_extension );
+
+    if (phase == tlm::BEGIN_REQ) {
+        // Check len
+        trans_pending.push(&trans);
+
+        // Trigger event
+        event_thread_process.notify();
+
+        // Delay
+        wait(delay);
+
+        // Display message
+        cout << name() << "   BEGIN_REQ RECEIVED " << " TRANS ID " << id_extension->transaction_id << " at time " << sc_time_stamp() << endl;
+
+        // Obliged to set response status to indicate successful completion
+        trans.set_response_status( tlm::TLM_OK_RESPONSE );
+    } else {
+        cout << name() << " NB_TRANSPORT_FW unexpected phase" << " at time " << sc_time_stamp() << endl;
+        trans.set_response_status( tlm::TLM_GENERIC_ERROR_RESPONSE );
+    }
+    return tlm::TLM_ACCEPTED;
+};
+
+void lpc_analizer::thread_process_resp() {
+    while (true) {
+        // Variables
+        tlm::tlm_phase phase_bw = tlm::BEGIN_RESP;
+        tlm::tlm_sync_enum status_bw;
+        sc_time delay_bw;
+        int32_t data;
+        ID_extension* id_extension = new ID_extension;
+        tlm::tlm_generic_payload * current_trans;
+
+        wait(event_thread_process);
+
+        current_trans = trans_pending.front();
+        trans_pending.pop();
+        unsigned char*   ptr = current_trans->get_data_ptr();
+        current_trans->get_extension( id_extension );
+        data = *reinterpret_cast<uint32_t*>(ptr);
+
+        // Set sample
+        set_sample(data);
+
+        // Obliged to set response status to indicate successful completion
+        current_trans->set_response_status( tlm::TLM_OK_RESPONSE );
+
+        cout << name() << "   BEGIN_RESP SENT" << "    " << " TRANS ID " << id_extension->transaction_id << " at time " << sc_time_stamp() << endl;
+
+        // Backward call
+        delay_bw= sc_time(1, SC_NS);
+        status_bw = target_socket->nb_transport_bw( *current_trans, phase_bw, delay_bw );
+
+        switch (status_bw) {
+            case tlm::TLM_ACCEPTED:
+                cout << name() << "   NB_TRANSPORT_BW (STATUS TLM_ACCEPTED)" << " at time " << sc_time_stamp() << endl;
+                break;
+            default:
+                cout << name() << "   NB_TRANSPORT_BW (STATUS not expected)" << " at time " << sc_time_stamp() << endl;
+                break;
+        }
+    }
+};
+
 // Thread process (Initiator)
 void lpc_analizer::thread_process() {
     // Local variables
@@ -58,7 +125,7 @@ void lpc_analizer::thread_process() {
 
                 trans->set_data_ptr( reinterpret_cast<unsigned char*>(&trans_data[i]));
 
-                status = socket->nb_transport_fw(*trans, phase, delay );
+                status = initiator_socket->nb_transport_fw(*trans, phase, delay );
 
                 switch (status) {
                     case tlm::TLM_ACCEPTED:

@@ -97,7 +97,7 @@ void Channel::thread_process() {
                 cout << name() << " Register Sampler Threshold updated" << " at time " << sc_time_stamp() << endl;
                 break;
             default:
-                SC_REPORT_ERROR("TLM-2", "ERROR: Unexpected address received in the AudioCapture module");
+                SC_REPORT_ERROR("TLM-2", "ERROR: Unexpected address received in the Channel module");
                 break;
         }
 
