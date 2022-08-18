@@ -106,7 +106,7 @@ void lpc_analizer::thread_process() {
 
         compute_LPC_window(trans_data);
 
-        if (window_counter<2) {
+        if (window_counter<4) {
             // Common fields
             for (uint32_t i=0; i<LPC_ORDER+2; i++) {
                 tlm::tlm_generic_payload *trans = new tlm::tlm_generic_payload;

@@ -15,11 +15,11 @@
 #include "tlm_utils/simple_initiator_socket.h"
 #include "tlm_utils/simple_target_socket.h"
 
-#define DEFAULT_MICROPHONE_SAMPLE_FREQUENCY 44100.0
+#define DEFAULT_MICROPHONE_SAMPLE_FREQUENCY     44100.0
 #define DEFAULT_FILTER_DEC_CUTOFF_FREQUENCY     18000.0
 #define DEFAULT_FILTER_DEC_GAIN                 1.0
-#define DEFAULT_ADC_SAMPLE_FREQUENCY        8000.0
-#define ADC_NUM_BITS                        32
+#define DEFAULT_ADC_SAMPLE_FREQUENCY            8000.0
+#define ADC_NUM_BITS                            32
 
 using namespace std;
 
@@ -48,7 +48,7 @@ SC_MODULE(AudioCapture) {
         microphone0("microphone", sc_core::sc_time((1.0/DEFAULT_MICROPHONE_SAMPLE_FREQUENCY), sc_core::SC_SEC)),
         filter0("filter", DEFAULT_FILTER_DEC_CUTOFF_FREQUENCY, DEFAULT_FILTER_DEC_GAIN),
         adc_converter0("adc_converter", (pow(2,ADC_NUM_BITS-1)-1), sc_core::sc_time((1.0/DEFAULT_ADC_SAMPLE_FREQUENCY), sc_core::SC_SEC)) {
-        
+
         // AMS Connections
         microphone0.out(microphone_out);
 

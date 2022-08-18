@@ -193,24 +193,23 @@ SC_MODULE(Top) {
 int sc_main(int argc, char* argv[])  {
 
     Top top("TOP");
-    
+
+    // Tracing
+  	sca_util::sca_trace_file* atf = sca_util::sca_create_vcd_trace_file( "full.vcd" );
+  	sca_util::sca_trace( atf, top.Channel0->prot_gen_out, "Channel_prot_gen_out" );
+  	sca_util::sca_trace( atf, top.Channel0->mod_out, "Channel_mod_out" );
+  	sca_util::sca_trace( atf, top.Channel0->demod0.rc.out, "Channel_rec_out" );
+  	sca_util::sca_trace( atf, top.Channel0->demod0.lp.out, "Channel_filter_out" );
+ 	sca_util::sca_trace( atf, top.Channel0->demod_out, "Channel_demod_out" );
+    sca_util::sca_trace(atf, top.AudioCapture0->microphone_out, "Audio_microphone_out");
+    sca_util::sca_trace(atf, top.AudioCapture0->filter_out, "Audio_filter_out");
+    sca_util::sca_trace(atf, top.AudioCapture0->adc_out, "Audio_adc_out");
+
     sc_start();
 
-    // Read WAV file
-    AudioFile<double> audioFile;
-    audioFile.load("speech.wav");
-
-    int channel = 0;
-    vector<double> samples = audioFile.samples[channel];
-
-    // Set samples
-    for (int i = 0; i<361; i++) {
-        top.lpc_analizer_i->set_sample(samples[i]);
-        cout << "Set sample[" << i << "]:" << endl;
-        sc_start(125,SC_US);
-    }
-
     sc_start(1000,SC_NS);
+
+    sca_util::sca_close_vcd_trace_file( atf );
 
     return 0;
 }
