@@ -106,45 +106,41 @@ void lpc_analizer::thread_process() {
 
         compute_LPC_window(trans_data);
 
-        if (window_counter<4) {
-            // Common fields
-            for (uint32_t i=0; i<LPC_ORDER+2; i++) {
-                tlm::tlm_generic_payload *trans = new tlm::tlm_generic_payload;
-                ID_extension* id_extension = new ID_extension;
-                id_extension->transaction_id = i+(LPC_ORDER+2)*window_counter;
-                trans->set_command( tlm::TLM_WRITE_COMMAND );
-                trans->set_data_length( 8 );
-                trans->set_address( ENCODER_COEFF );
-                trans->set_streaming_width( 8 ); // = data_length to indicate no streaming
-                trans->set_byte_enable_ptr( 0 ); // 0 indicates unused
-                trans->set_dmi_allowed( false ); // Mandatory initial value
-                trans->set_response_status( tlm::TLM_INCOMPLETE_RESPONSE ); // Mandatory initial value
-                trans->set_extension(id_extension);
+        // Common fields
+        for (uint32_t i=0; i<LPC_ORDER+2; i++) {
+            tlm::tlm_generic_payload *trans = new tlm::tlm_generic_payload;
+            ID_extension* id_extension = new ID_extension;
+            id_extension->transaction_id = i+(LPC_ORDER+2)*window_counter;
+            trans->set_command( tlm::TLM_WRITE_COMMAND );
+            trans->set_data_length( 8 );
+            trans->set_address( ENCODER_COEFF );
+            trans->set_streaming_width( 8 ); // = data_length to indicate no streaming
+            trans->set_byte_enable_ptr( 0 ); // 0 indicates unused
+            trans->set_dmi_allowed( false ); // Mandatory initial value
+            trans->set_response_status( tlm::TLM_INCOMPLETE_RESPONSE ); // Mandatory initial value
+            trans->set_extension(id_extension);
 
-                cout << name() << "  BEGIN_REQ SENT " << "    " << " TRANS ID " << id_extension->transaction_id << " at time " << sc_time_stamp() << endl;
+            cout << name() << "  BEGIN_REQ SENT " << "    " << " TRANS ID " << id_extension->transaction_id << " at time " << sc_time_stamp() << endl;
 
-                trans->set_data_ptr( reinterpret_cast<unsigned char*>(&trans_data[i]));
+            trans->set_data_ptr( reinterpret_cast<unsigned char*>(&trans_data[i]));
 
-                status = initiator_socket->nb_transport_fw(*trans, phase, delay );
+            status = initiator_socket->nb_transport_fw(*trans, phase, delay );
 
-                switch (status) {
-                    case tlm::TLM_ACCEPTED:
-                        cout << name() << "  NB_TRANSPORT_FW (STATUS TLM_ACCEPTED)" << " at time " << sc_time_stamp() << endl;
-                        break;
-                    default:
-                        cout << name() << "  NB_TRANSPORT_FW (STATUS not expected)" << " at time " << sc_time_stamp() << endl;
-                        break;
-                }
-
-                // Initiator obliged to check response status
-                if ( trans->is_response_error() ) {
-                    char txt[100];
-                    sprintf(txt, "Error from b_transport, response status = %s", trans->get_response_string().c_str());
-                    SC_REPORT_ERROR("TLM-2", txt);
-                }
+            switch (status) {
+                case tlm::TLM_ACCEPTED:
+                    cout << name() << "  NB_TRANSPORT_FW (STATUS TLM_ACCEPTED)" << " at time " << sc_time_stamp() << endl;
+                    break;
+                default:
+                    cout << name() << "  NB_TRANSPORT_FW (STATUS not expected)" << " at time " << sc_time_stamp() << endl;
+                    break;
             }
-        } else {
-            break;
+
+            // Initiator obliged to check response status
+            if ( trans->is_response_error() ) {
+                char txt[100];
+                sprintf(txt, "Error from b_transport, response status = %s", trans->get_response_string().c_str());
+                SC_REPORT_ERROR("TLM-2", txt);
+            }
         }
         window_counter++;
     }

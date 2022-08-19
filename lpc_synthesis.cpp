@@ -141,10 +141,14 @@ void lpc_synthesis::LPC_decoding() {
 
         out = lcpDecode(A,GF);
 
-        sleep(1);
+        sleep(0.1);
         for(uint16_t n = 0; n<WINDOW_LENGTH_2; n++) {
             LPC_output[n]=out(n);
+            audio_buffer.push_back(LPC_output[n]);
         }
+
+        audioFile.samples[0] = audio_buffer;
+        audioFile.save("speech_received.wav");
     }
 
 void lpc_synthesis::execute(double * input) {

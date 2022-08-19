@@ -6,6 +6,8 @@
 #include <random>
 #include <armadillo>
 #include <queue>
+#include <vector>
+#include "AudioFile.h"
 
 #include "tlm.h"
 #include "tlm_utils/simple_initiator_socket.h"
@@ -24,6 +26,10 @@ SC_MODULE(lpc_synthesis) {
     double input_buffer[N_POLES+2];
     double LPC_output[WINDOW_LENGTH_2];
 
+    // Audio variables
+    AudioFile<double> audioFile;
+    vector<double> audio_buffer;
+
     tlm_utils::simple_target_socket<lpc_synthesis> socket;
 
     // Queues
@@ -35,6 +41,9 @@ SC_MODULE(lpc_synthesis) {
         socket.register_nb_transport_fw(this, &lpc_synthesis::nb_transport_fw);
         SC_THREAD(thread_process);
         SC_THREAD(thread_notify);
+        audioFile.setBitDepth(16);
+        audioFile.setSampleRate(8000);
+        audioFile.setNumChannels(1);
     }
 
     void LPC_decoding();
